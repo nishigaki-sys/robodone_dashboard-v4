@@ -578,10 +578,11 @@
             );
         };
         // ==========================================
-        // 4. School Console Component
+        // 4. School Console Component (計画策定機能 強化版)
         // ==========================================
         function SchoolConsole({ onBack, campus, allData, selectedYear, setSelectedYear, refreshData, showNotify, isAdmin }) {
             const [activeTab, setActiveTab] = useState('daily');
+            const [planMode, setPlanMode] = useState('annual'); // 'annual' | 'monthly'
             const [selectedMonth, setSelectedMonth] = useState(() => { const d = new Date(); return (d.getMonth() + 1) + '月'; });
             const [reportDate, setReportDate] = useState(formatDateStr(new Date()));
             const [inputData, setInputData] = useState({ weather: 'sunny', flyers: 0, touch: 0, trial: 0, comment: '' });
@@ -590,7 +591,6 @@
             const [isSavingPlan, setIsSavingPlan] = useState(false);
             const [uploadTargetYear, setUploadTargetYear] = useState(selectedYear);
             const [isInputModalOpen, setIsInputModalOpen] = useState(false);
-            const [editWeeklyPlan, setEditWeeklyPlan] = useState(false); // 週次計画編集モード
 
             // ダッシュボードデータの計算 (レポート用)
             const dashboardData = useMemo(() => {
@@ -674,19 +674,23 @@
                 } catch(e) { showNotify("削除エラー: " + e.message, 'error'); }
             };
 
-            // 週次計画の入力ハンドラ
-            const handleWeeklyPlanChange = (weekIndex, field, value) => {
+            // 計画データの更新ハンドラ (年間・月度共通)
+            const updatePlanData = (month, key, value, weekIndex = null) => {
                 setPlanData(prev => {
                     const newData = { ...prev };
-                    if (!newData[selectedMonth]) newData[selectedMonth] = { weeks: [] };
-                    if (!newData[selectedMonth].weeks) newData[selectedMonth].weeks = [];
+                    if (!newData[month]) newData[month] = {};
                     
-                    const weeks = [...newData[selectedMonth].weeks];
-                    if (!weeks[weekIndex]) weeks[weekIndex] = {};
-                    
-                    weeks[weekIndex] = { ...weeks[weekIndex], [field]: Number(value) };
-                    newData[selectedMonth].weeks = weeks;
-                    
+                    if (weekIndex !== null) {
+                        // 週次データの更新
+                        if (!newData[month].weeks) newData[month].weeks = [];
+                        const weeks = [...newData[month].weeks];
+                        if (!weeks[weekIndex]) weeks[weekIndex] = {};
+                        weeks[weekIndex] = { ...weeks[weekIndex], [key]: Number(value) };
+                        newData[month].weeks = weeks;
+                    } else {
+                        // 月次データの更新
+                        newData[month] = { ...newData[month], [key]: Number(value) };
+                    }
                     return newData;
                 });
             };
@@ -738,7 +742,7 @@
 
             return (
                 <div className="flex h-screen bg-brand-slate overflow-hidden fade-in">
-                    {/* レポート印刷用ビュー (画面上には表示しないが印刷時に表示される) */}
+                    {/* レポート印刷用ビュー */}
                     <div className="print-only">
                          <ReportView 
                             year={displayCalendarYear} 
@@ -746,7 +750,7 @@
                             campus={campus} 
                             dailyData={currentMonthData.daily} 
                             weeklyData={currentMonthData.weekly} 
-                            planData={planData} // 計画データを渡す
+                            planData={planData} 
                          />
                     </div>
 
@@ -769,19 +773,11 @@
                                         <div><label className="text-xs font-bold text-gray-400 block mb-1">T&T数</label><input type="number" value={inputData.touch} onChange={e=>setInputData({...inputData,touch:e.target.value})} className="w-full border rounded p-2 text-right font-bold text-gray-700"/></div>
                                     </div>
                                     <div><label className="text-xs font-bold text-gray-400 block mb-1">体験会実施数</label><input type="number" value={inputData.trial} onChange={e=>setInputData({...inputData,trial:e.target.value})} className="w-full border rounded p-2 text-right font-bold text-gray-700"/></div>
-                                    
                                     <div>
                                         <label className="text-xs font-bold text-gray-400 block mb-1">コメント (100文字以内)</label>
-                                        <textarea 
-                                            value={inputData.comment} 
-                                            onChange={e=>setInputData({...inputData,comment:e.target.value})} 
-                                            maxLength={100}
-                                            className="w-full border rounded p-2 text-sm text-gray-700 h-20 resize-none focus:ring-2 focus:ring-brand-orange outline-none"
-                                            placeholder="特記事項があれば入力..."
-                                        />
+                                        <textarea value={inputData.comment} onChange={e=>setInputData({...inputData,comment:e.target.value})} maxLength={100} className="w-full border rounded p-2 text-sm text-gray-700 h-20 resize-none focus:ring-2 focus:ring-brand-orange outline-none" placeholder="特記事項があれば入力..."/>
                                         <div className="text-right text-[10px] text-gray-400">{inputData.comment.length}/100</div>
                                     </div>
-
                                     <div className="flex gap-2 mt-6 pt-4 border-t border-gray-100">
                                         <button onClick={handleDeleteReport} className="p-3 text-red-500 hover:bg-red-50 rounded-lg" title="データを削除"><Trash2 className="w-5 h-5"/></button>
                                         <button onClick={() => setIsInputModalOpen(false)} className="flex-1 py-3 text-gray-500 hover:bg-gray-100 rounded-lg font-bold text-sm">キャンセル</button>
@@ -823,6 +819,7 @@
                             </div>
                         </header>
                         <div className="p-8 max-w-5xl mx-auto">
+                            {/* 日報入力タブ */}
                             {activeTab === 'daily' && (
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
                                     <div className="lg:col-span-3 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -859,49 +856,149 @@
                                     </div>
                                 </div>
                             )}
+
+                            {/* 計画策定タブ (大幅改修) */}
                             {activeTab === 'plan' && (
                                 <div className="space-y-6 animate-in fade-in">
                                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                                         <div className="flex justify-between items-center mb-6">
                                             <div className="flex items-center gap-4">
-                                                <h3 className="font-bold text-gray-800 flex items-center"><TrendingUp className="w-5 h-5 mr-2 text-brand-orange"/> {selectedYear}年度 計画入力 ({selectedMonth})</h3>
-                                                <div className="flex gap-1 bg-gray-50 p-1 rounded-lg border">{MONTHS_LIST.map(m=><button key={m} onClick={()=>setSelectedMonth(m)} className={`text-xs px-2 py-1 rounded ${selectedMonth===m?'bg-white text-brand-orange shadow-sm font-bold':'text-gray-400 hover:text-gray-600'}`}>{m}</button>)}</div>
+                                                <h3 className="font-bold text-gray-800 flex items-center"><TrendingUp className="w-5 h-5 mr-2 text-brand-orange"/> {selectedYear}年度 計画策定</h3>
+                                                <div className="flex bg-gray-100 p-1 rounded-lg">
+                                                    <button onClick={() => setPlanMode('annual')} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${planMode==='annual' ? 'bg-white text-brand-orange shadow-sm' : 'text-gray-500'}`}>年間計画</button>
+                                                    <button onClick={() => setPlanMode('monthly')} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${planMode==='monthly' ? 'bg-white text-brand-orange shadow-sm' : 'text-gray-500'}`}>月度計画 (週次)</button>
+                                                </div>
                                             </div>
                                             <button onClick={handleSavePlan} disabled={isSavingPlan} className="bg-brand-blue text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700 flex items-center">{isSavingPlan ? <Loader2 className="animate-spin w-4 h-4 mr-2"/> : <Save className="w-4 h-4 mr-2"/>} 保存する</button>
                                         </div>
-                                        <div className="overflow-x-auto">
-                                            <div className="text-xs text-gray-500 mb-2">※週次で計画を入力してください。</div>
-                                            <table className="w-full text-sm text-left border-collapse">
-                                                <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
-                                                    <tr>
-                                                        <th className="px-4 py-3 min-w-[120px]">期間</th>
-                                                        <th className="px-4 py-3 min-w-[100px]">T&T数</th>
-                                                        <th className="px-4 py-3 min-w-[100px]">門配数</th>
-                                                        <th className="px-4 py-3 min-w-[100px]">体験申込</th>
-                                                        <th className="px-4 py-3 min-w-[100px]">体験参加</th>
-                                                        <th className="px-4 py-3 min-w-[100px]">入会数</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-100">
-                                                    {currentWeeksStruct.weeks.map((week, idx) => {
-                                                        const weekData = planData[selectedMonth]?.weeks?.[idx] || {};
-                                                        return (
-                                                            <tr key={idx} className="hover:bg-gray-50">
-                                                                <td className="px-4 py-2 font-bold text-gray-700">{week.label}</td>
-                                                                <td className="px-4 py-2"><input type="number" value={weekData.touchTry || 0} onChange={(e)=>handleWeeklyPlanChange(idx, 'touchTry', e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded px-2 py-1 text-right focus:bg-white focus:ring-1 focus:ring-brand-orange outline-none"/></td>
-                                                                <td className="px-4 py-2"><input type="number" value={weekData.flyers || 0} onChange={(e)=>handleWeeklyPlanChange(idx, 'flyers', e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded px-2 py-1 text-right focus:bg-white focus:ring-1 focus:ring-brand-orange outline-none"/></td>
-                                                                <td className="px-4 py-2"><input type="number" value={weekData.trialApp || 0} onChange={(e)=>handleWeeklyPlanChange(idx, 'trialApp', e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded px-2 py-1 text-right focus:bg-white focus:ring-1 focus:ring-brand-orange outline-none"/></td>
-                                                                <td className="px-4 py-2"><input type="number" value={weekData.trialParticipation || 0} onChange={(e)=>handleWeeklyPlanChange(idx, 'trialParticipation', e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded px-2 py-1 text-right focus:bg-white focus:ring-1 focus:ring-brand-orange outline-none"/></td>
-                                                                <td className="px-4 py-2"><input type="number" value={weekData.enrollments || 0} onChange={(e)=>handleWeeklyPlanChange(idx, 'enrollments', e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded px-2 py-1 text-right focus:bg-white focus:ring-1 focus:ring-brand-orange outline-none"/></td>
+
+                                        {/* 年間計画モード */}
+                                        {planMode === 'annual' && (
+                                            <div className="overflow-x-auto">
+                                                <div className="mb-8">
+                                                    <h4 className="font-bold text-gray-700 mb-2 border-l-4 border-brand-orange pl-2">1. 生徒・マーケティング計画</h4>
+                                                    <table className="w-full text-sm text-left border-collapse min-w-[1000px]">
+                                                        <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
+                                                            <tr>
+                                                                <th className="px-2 py-2">月度</th>
+                                                                <th className="px-2 py-2 w-24">生徒数</th>
+                                                                <th className="px-2 py-2 w-24">退会数</th>
+                                                                <th className="px-2 py-2 w-24">T&T数</th>
+                                                                <th className="px-2 py-2 w-24">門配数</th>
+                                                                <th className="px-2 py-2 w-24">体験数</th>
+                                                                <th className="px-2 py-2 w-24">入会数</th>
+                                                                <th className="px-2 py-2 w-20 bg-gray-50">入会率</th>
                                                             </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-100">
+                                                            {MONTHS_LIST.map((m) => {
+                                                                const d = planData[m] || {};
+                                                                const rate = d.trials > 0 ? ((d.enrollments / d.trials) * 100).toFixed(1) : 0;
+                                                                return (
+                                                                    <tr key={m} className="hover:bg-gray-50">
+                                                                        <td className="px-2 py-2 font-bold text-gray-700">{m}</td>
+                                                                        <td className="px-1"><input type="number" value={d.students || 0} onChange={(e)=>updatePlanData(m, 'students', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
+                                                                        <td className="px-1"><input type="number" value={d.withdrawals || 0} onChange={(e)=>updatePlanData(m, 'withdrawals', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
+                                                                        <td className="px-1"><input type="number" value={d.touchTry || 0} onChange={(e)=>updatePlanData(m, 'touchTry', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
+                                                                        <td className="px-1"><input type="number" value={d.flyers || 0} onChange={(e)=>updatePlanData(m, 'flyers', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
+                                                                        <td className="px-1"><input type="number" value={d.trials || 0} onChange={(e)=>updatePlanData(m, 'trials', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
+                                                                        <td className="px-1"><input type="number" value={d.enrollments || 0} onChange={(e)=>updatePlanData(m, 'enrollments', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
+                                                                        <td className="px-2 py-2 text-right text-gray-500 text-xs">{rate}%</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                
+                                                <div>
+                                                    <h4 className="font-bold text-gray-700 mb-2 border-l-4 border-brand-blue pl-2">2. 収支・PL計画</h4>
+                                                    <table className="w-full text-sm text-left border-collapse min-w-[1000px]">
+                                                        <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
+                                                            <tr>
+                                                                <th className="px-2 py-2">月度</th>
+                                                                <th className="px-2 py-2 w-28">売上高</th>
+                                                                <th className="px-2 py-2 w-24">入会金</th>
+                                                                <th className="px-2 py-2 w-24">その他売上</th>
+                                                                <th className="px-2 py-2 w-24">広告宣伝費</th>
+                                                                <th className="px-2 py-2 w-24">販売費</th>
+                                                                <th className="px-2 py-2 w-24">人件費</th>
+                                                                <th className="px-2 py-2 w-24">設備費</th>
+                                                                <th className="px-2 py-2 w-24">一般管理費</th>
+                                                                <th className="px-2 py-2 w-28 bg-gray-50">営業利益</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-100">
+                                                            {MONTHS_LIST.map((m) => {
+                                                                const d = planData[m] || {};
+                                                                const revenueTotal = (d.revenue||0) + (d.entranceFee||0) + (d.otherSales||0);
+                                                                const expenseTotal = (d.adCost||0) + (d.salesCost||0) + (d.laborCost||0) + (d.facilityCost||0) + (d.adminCost||0);
+                                                                const profit = revenueTotal - expenseTotal;
+                                                                return (
+                                                                    <tr key={m} className="hover:bg-gray-50">
+                                                                        <td className="px-2 py-2 font-bold text-gray-700">{m}</td>
+                                                                        <td className="px-1"><input type="number" value={d.revenue || 0} onChange={(e)=>updatePlanData(m, 'revenue', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
+                                                                        <td className="px-1"><input type="number" value={d.entranceFee || 0} onChange={(e)=>updatePlanData(m, 'entranceFee', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
+                                                                        <td className="px-1"><input type="number" value={d.otherSales || 0} onChange={(e)=>updatePlanData(m, 'otherSales', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
+                                                                        <td className="px-1"><input type="number" value={d.adCost || 0} onChange={(e)=>updatePlanData(m, 'adCost', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
+                                                                        <td className="px-1"><input type="number" value={d.salesCost || 0} onChange={(e)=>updatePlanData(m, 'salesCost', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
+                                                                        <td className="px-1"><input type="number" value={d.laborCost || 0} onChange={(e)=>updatePlanData(m, 'laborCost', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
+                                                                        <td className="px-1"><input type="number" value={d.facilityCost || 0} onChange={(e)=>updatePlanData(m, 'facilityCost', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
+                                                                        <td className="px-1"><input type="number" value={d.adminCost || 0} onChange={(e)=>updatePlanData(m, 'adminCost', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
+                                                                        <td className={`px-2 py-2 text-right text-xs font-bold ${profit>=0 ? 'text-gray-700':'text-red-500'}`}>{profit.toLocaleString()}</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* 月度計画モード (週次) */}
+                                        {planMode === 'monthly' && (
+                                            <div>
+                                                <div className="flex gap-1 mb-4 flex-wrap">
+                                                    {MONTHS_LIST.map(m=><button key={m} onClick={()=>setSelectedMonth(m)} className={`text-sm px-3 py-1 rounded-full border ${selectedMonth===m?'bg-brand-orange text-white border-brand-orange':'bg-white text-gray-500 hover:bg-gray-50'}`}>{m}</button>)}
+                                                </div>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-sm text-left border-collapse">
+                                                        <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
+                                                            <tr>
+                                                                <th className="px-4 py-3 min-w-[120px]">期間</th>
+                                                                <th className="px-4 py-3 min-w-[100px]">T&T数</th>
+                                                                <th className="px-4 py-3 min-w-[100px]">門配数</th>
+                                                                <th className="px-4 py-3 min-w-[100px]">体験申込</th>
+                                                                <th className="px-4 py-3 min-w-[100px]">体験実施</th>
+                                                                <th className="px-4 py-3 min-w-[100px]">入会数</th>
+                                                                <th className="px-4 py-3 min-w-[80px]">入会率</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-100">
+                                                            {currentWeeksStruct.weeks.map((week, idx) => {
+                                                                const weekData = planData[selectedMonth]?.weeks?.[idx] || {};
+                                                                const rate = weekData.trialActual > 0 ? ((weekData.enrollments / weekData.trialActual) * 100).toFixed(1) : 0;
+                                                                return (
+                                                                    <tr key={idx} className="hover:bg-gray-50">
+                                                                        <td className="px-4 py-2 font-bold text-gray-700">{week.label}</td>
+                                                                        <td className="px-4 py-2"><input type="number" value={weekData.touchTry || 0} onChange={(e)=>updatePlanData(selectedMonth, 'touchTry', e.target.value, idx)} className="w-full bg-gray-50 border border-gray-200 rounded px-2 py-1 text-right focus:bg-white focus:ring-1 focus:ring-brand-orange outline-none"/></td>
+                                                                        <td className="px-4 py-2"><input type="number" value={weekData.flyers || 0} onChange={(e)=>updatePlanData(selectedMonth, 'flyers', e.target.value, idx)} className="w-full bg-gray-50 border border-gray-200 rounded px-2 py-1 text-right focus:bg-white focus:ring-1 focus:ring-brand-orange outline-none"/></td>
+                                                                        <td className="px-4 py-2"><input type="number" value={weekData.trialApp || 0} onChange={(e)=>updatePlanData(selectedMonth, 'trialApp', e.target.value, idx)} className="w-full bg-gray-50 border border-gray-200 rounded px-2 py-1 text-right focus:bg-white focus:ring-1 focus:ring-brand-orange outline-none"/></td>
+                                                                        <td className="px-4 py-2"><input type="number" value={weekData.trialActual || 0} onChange={(e)=>updatePlanData(selectedMonth, 'trialActual', e.target.value, idx)} className="w-full bg-gray-50 border border-gray-200 rounded px-2 py-1 text-right focus:bg-white focus:ring-1 focus:ring-brand-orange outline-none"/></td>
+                                                                        <td className="px-4 py-2"><input type="number" value={weekData.enrollments || 0} onChange={(e)=>updatePlanData(selectedMonth, 'enrollments', e.target.value, idx)} className="w-full bg-gray-50 border border-gray-200 rounded px-2 py-1 text-right focus:bg-white focus:ring-1 focus:ring-brand-orange outline-none"/></td>
+                                                                        <td className="px-4 py-2 text-right text-gray-500 font-mono">{rate}%</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
+
                             {/* 帳票出力タブ */}
                             {activeTab === 'report' && (
                                 <div className="space-y-6 animate-in fade-in">
@@ -921,7 +1018,7 @@
                                                     campus={campus} 
                                                     dailyData={currentMonthData.daily} 
                                                     weeklyData={currentMonthData.weekly} 
-                                                    planData={planData} // 計画データを渡す
+                                                    planData={planData} 
                                                 />
                                             </div>
                                         </div>
@@ -1321,154 +1418,6 @@
                                     </div>
                                 </div>
                             )}
-                            {activeTab === 'pl' && (
-                                <div className="space-y-8 animate-in fade-in">
-                                    <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-                                        <StatCard title="売上" value={formatYen(currentViewData.revenue)} subValue={currentViewData.periodLabel} yoy={calcYoY(currentViewData.revenue, currentViewData.prevRevenue)} iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_1eb00716-6ac0-4be4-9b78-e8e9be44198e.svg" colorClass="text-brand-blue" />
-                                        <StatCard title="費用" value={formatYen(currentViewData.expense)} subValue={currentViewData.periodLabel} yoy={calcYoY(currentViewData.expense, currentViewData.prevExpense)} iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_72e22ba6-81fa-4b3e-abf5-23d886ad1dea.svg" colorClass="text-rose-500" />
-                                        <StatCard title="営業利益" value={formatYen(currentViewData.profit)} subValue={currentViewData.periodLabel} yoy={calcYoY(currentViewData.profit, currentViewData.prevProfit)} iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_33bb072f-fe8f-4a20-8e5a-0bc5f53bde3d.svg" colorClass="text-emerald-500" />
-                                        <StatCard title="アルバイト人件費率" value={`${currentViewData.revenue > 0 ? (currentViewData.partTime / currentViewData.revenue * 100).toFixed(1) : 0}%`} subValue="売上比" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_f93e0546-f8d7-464b-b008-882ad339027e.svg" colorClass="text-rose-500" />
-                                        <StatCard title="利益率" value={`${currentViewData.revenue ? ((currentViewData.profit/currentViewData.revenue)*100).toFixed(1) : 0}%`} subValue="売上対比" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_d71099f5-a933-4295-9991-75c16e130f81.svg" colorClass="text-brand-orange" />
-                                    </div>
-                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-[500px]">
-                                        <div className="flex justify-between items-center mb-6">
-                                            <h3 className="text-lg font-bold text-gray-800 flex items-center"><DollarSign className="w-5 h-5 mr-2 text-brand-blue"/> 詳細収支推移 ({viewLabel})</h3>
-                                            <div className="flex items-center space-x-2">
-                                                <span className="text-xs text-gray-500">表示科目:</span>
-                                                <select value={plViewCategory} onChange={(e) => setPlViewCategory(e.target.value)} className="text-xs border border-gray-300 rounded px-2 py-1 outline-none">
-                                                    <option value="all">全体 (サマリー)</option>
-                                                    <option value="revenue">売上</option>
-                                                    <option value="ad">広告宣伝費</option>
-                                                    <option value="sales">販売費</option>
-                                                    <option value="labor">人件費</option>
-                                                    <option value="facility">設備費</option>
-                                                    <option value="admin">一般管理費</option>
-                                                    <option value="hq">本社費</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        {viewMode === 'monthly' ? (
-                                            <div className="grid grid-cols-2 gap-8 h-full">
-                                                 <div className="overflow-x-auto h-full">
-                                                    <table className="w-full text-sm">
-                                                        <thead className="bg-gray-50 text-gray-500 font-medium">
-                                                            <tr><th className="px-4 py-2 text-left">科目</th><th className="px-4 py-2 text-right">実績</th><th className="px-4 py-2 text-right">売上比</th><th className="px-4 py-2 text-right">前年</th><th className="px-4 py-2 text-right">前年比</th></tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-gray-100">
-                                                            {monthlySummaryData.map((item) => {
-                                                                const isProfit = item.id === 'profit';
-                                                                const ratio = monthlySummaryData[0].value > 0 ? (item.value / monthlySummaryData[0].value * 100).toFixed(1) : '-';
-                                                                const yoy = item.prev > 0 ? ((item.value - item.prev) / item.prev * 100).toFixed(1) : '-';
-                                                                return (
-                                                                    <tr key={item.id} onClick={() => handlePLRowClick(item)} className={`hover:bg-blue-50 cursor-pointer ${selectedPLItem?.id === item.id ? 'bg-blue-50' : ''}`}>
-                                                                        <td className="px-4 py-3 font-bold text-gray-700 flex items-center"><div className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: item.fill}}></div>{item.name}</td>
-                                                                        <td className="px-4 py-3 text-right">{formatYen(item.value)}</td>
-                                                                        <td className="px-4 py-3 text-right text-gray-500">{ratio}%</td>
-                                                                        <td className="px-4 py-3 text-right text-gray-400">{formatYen(item.prev)}</td>
-                                                                        <td className={`px-4 py-3 text-right font-bold ${yoy > 0 ? (isProfit ? 'text-emerald-600' : 'text-rose-600') : (isProfit ? 'text-rose-600' : 'text-emerald-600')}`}>{yoy !== '-' ? yoy + '%' : '-'}</td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                                <div className="h-full flex flex-col">
-                                                     {selectedPLItem ? (
-                                                         <>
-                                                            <h3 className="text-lg font-bold text-gray-800 mb-2">{selectedPLItem.name} 詳細</h3>
-                                                            <div className="flex-1 overflow-y-auto">
-                                                                {monthDataForPL.detailItems[selectedPLItem.id]?.map((d, i) => (
-                                                                    <div key={i} className="flex justify-between p-2 border-b border-gray-50 text-sm"><span>{d.name}</span><span>{formatYen(d.value)}</span></div>
-                                                                ))}
-                                                            </div>
-                                                         </>
-                                                     ) : <div className="flex items-center justify-center h-full text-gray-400">科目を選択してください</div>}
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <ResponsiveContainer width="100%" height="90%">
-                                                {plViewCategory === 'all' ? (
-                                                    <ComposedChart data={displayData} stackOffset="sign" onMouseMove={handleChartHover} onMouseLeave={handleChartLeave}>
-                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                        <XAxis dataKey="name" interval={0} />
-                                                        <YAxis />
-                                                        <Tooltip formatter={(value)=>formatYen(value)} />
-                                                        <Legend />
-                                                        <Bar dataKey="ad" name="広告宣伝費" stackId="exp" fill={COLORS.ad} onClick={(data, i) => onBarClick(data, i, null, 'ad')} cursor="pointer"/>
-                                                        <Bar dataKey="sales" name="販売費" stackId="exp" fill={COLORS.sales} onClick={(data, i) => onBarClick(data, i, null, 'sales')} cursor="pointer"/>
-                                                        <Bar dataKey="labor" name="人件費" stackId="exp" fill={COLORS.labor} onClick={(data, i) => onBarClick(data, i, null, 'labor')} cursor="pointer"/>
-                                                        <Bar dataKey="facility" name="設備費" stackId="exp" fill={COLORS.facility} onClick={(data, i) => onBarClick(data, i, null, 'facility')} cursor="pointer"/>
-                                                        <Bar dataKey="admin" name="一般管理費" stackId="exp" fill={COLORS.admin} onClick={(data, i) => onBarClick(data, i, null, 'admin')} cursor="pointer"/>
-                                                        <Bar dataKey="hq" name="本社費" stackId="exp" fill={COLORS.hq} onClick={(data, i) => onBarClick(data, i, null, 'hq')} cursor="pointer"/>
-                                                        <Bar dataKey="other" name="その他" stackId="exp" fill={COLORS.other} onClick={(data, i) => onBarClick(data, i, null, 'other')} cursor="pointer"/>
-                                                        <Line type="monotone" dataKey="revenue" name="売上" stroke={COLORS.revenue} strokeWidth={3} />
-                                                        <Line type="monotone" dataKey="profit" name="営業利益" stroke={COLORS.profit} strokeWidth={2} strokeDasharray="5 5" />
-                                                    </ComposedChart>
-                                                ) : (
-                                                    <BarChart data={plChartData.data}>
-                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                        <XAxis dataKey="name" interval={0} />
-                                                        <YAxis />
-                                                        <Tooltip formatter={(value)=>formatYen(value)} />
-                                                        <Legend />
-                                                        {plChartData.keys.map((key, index) => (
-                                                            <Bar key={key} dataKey={key} stackId="a" fill={SUB_COLORS[index % SUB_COLORS.length]} />
-                                                        ))}
-                                                    </BarChart>
-                                                )}
-                                            </ResponsiveContainer>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                            
-                            {activeTab === 'students' && (
-                                <div className="space-y-8 animate-in fade-in">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        <StatCard 
-                                            title="期間内増加" 
-                                            value={`${totals.newEnrollments + totals.transferIns}名`} 
-                                            subValue="入会+転入" 
-                                            iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_d71099f5-a933-4295-9991-75c16e130f81.svg" 
-                                            colorClass="text-emerald-500" 
-                                            details={[{label:'入会', value:totals.newEnrollments}, {label:'転入', value:totals.transferIns}]} 
-                                        />
-                                        <StatCard 
-                                            title="期間内減少" 
-                                            value={`${totals.withdrawals + Math.abs(totals.transfers) + Math.abs(totals.graduates)}名`} 
-                                            subValue="退会+転校+卒業" 
-                                            iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_c22e686d-38dc-4fb6-bcf8-dc71adcf9d99.svg" 
-                                            colorClass="text-rose-500" 
-                                            details={[{label:'退会', value:totals.withdrawals}, {label:'転校', value:Math.abs(totals.transfers)}, {label:'卒業', value:Math.abs(totals.graduates)}]} 
-                                        />
-                                        <StatCard 
-                                            title="在籍生徒数" 
-                                            value={`${currentTotalStudents}名`} 
-                                            subValue={viewMode==='annual'?'年度末':'月末'} 
-                                            iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_cd586213-916c-4b50-b0c3-deb64e7fdd8a.svg" 
-                                            colorClass="text-brand-blue" 
-                                        />
-                                    </div>
-                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-[500px]">
-                                        <h3 className="text-lg font-bold text-gray-800 mb-6">生徒数増減詳細</h3>
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={displayData} stackOffset="sign">
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                <XAxis dataKey="name" interval={0} tick={viewMode === 'weekly' ? WeeklyAxisTick : undefined} />
-                                                <YAxis />
-                                                <Tooltip />
-                                                <Legend />
-                                                <ReferenceLine y={0} stroke="#000" />
-                                                <Bar dataKey="newEnrollments" name="入会" fill="#10b981" stackId="stack" />
-                                                <Bar dataKey="transferIns" name="転入" fill="#06B6D4" stackId="stack" />
-                                                <Bar dataKey="withdrawals_neg" name="退会" fill="#EF4444" stackId="stack" />
-                                                <Bar dataKey="graduates_neg" name="卒業" fill="#A855F7" stackId="stack" />
-                                                <Bar dataKey="transfers_neg" name="転校" fill="#F97316" stackId="stack" />
-                                            </BarChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </div>
-                            )}
 
                             {activeTab === 'marketing' && (
                                 <div className="space-y-8 animate-in fade-in">
@@ -1554,6 +1503,7 @@
             const [consoleMode, setConsoleMode] = useState('select'); 
             const [selectedCampusId, setSelectedCampusId] = useState(null);
             const [campusList, setCampusList] = useState([]);
+            // 現在日付から初期年度を自動判定 (1-3月なら前年が年度)
             const [selectedYear, setSelectedYear] = useState(() => { const d = new Date(); return d.getMonth() < 3 ? d.getFullYear() - 1 : d.getFullYear(); });
             const [notification, setNotification] = useState(null);
             const [isSyncing, setIsSyncing] = useState(false);
