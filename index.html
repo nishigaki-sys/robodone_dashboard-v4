@@ -57,13 +57,22 @@
         .modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
 
         /* 印刷用スタイル */
-        @media print {
-            body { background-color: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
+       @media print {
+            body { 
+                background-color: white; 
+                -webkit-print-color-adjust: exact; 
+                print-color-adjust: exact; 
+                margin: 0; 
+                padding: 0;
+                
+                /* ▼▼▼ 追加: これで印刷時に自動的に83%縮小されます ▼▼▼ */
+                zoom: 0.83; 
+            }
             .no-print { display: none !important; }
             .print-only { display: block !important; }
             .page-break { page-break-before: always; }
-            @page { size: A4; margin: 10mm; } /* 余白を少し広めに確保 */
-            .report-container { width: 100%; max-width: 190mm; margin: 0 auto; }
+            @page { size: A4; margin: 5mm; } /* マージンは少し狭めに戻しておくと安全です */
+            .report-container { width: 100%; max-width: 200mm; margin: 0 auto; }
         }
         
         /* 画面プレビューと印刷共通のテーブルスタイル */
