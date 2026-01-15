@@ -1102,7 +1102,7 @@
             const displayCalendarYear = isJanFebMar ? Number(selectedYear) + 1 : Number(selectedYear);
 
             return (
-                <div className="flex h-screen bg-brand-slate overflow-hidden fade-in">
+                <div className="flex h-screen bg-brand-slate overflow-hidden fade-in print:block print:h-auto print:overflow-visible print:bg-white">
                     {/* レポート印刷用ビュー: 画面には表示せず印刷時のみ表示 */}
                     <div className="print-only">
                          <ReportView 
