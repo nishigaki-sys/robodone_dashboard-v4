@@ -267,7 +267,7 @@
                     const [fY, fM] = dateStr.split('-').map(Number);
                     return fY === tYearPrev && fM === (tMonth + 1);
                 });
-                
+
                 const aggFinancials = (fins) => {
                     const agg = { revenue: 0, ad: 0, sales: 0, labor: 0, facility: 0, admin: 0, hq: 0, other: 0, expenseTotal: 0, partTime: 0 };
                     const details = {};
@@ -354,7 +354,6 @@
                     };
                 });
 
-                // 在籍生徒数の計算
                 const netChange = (sumDaily('newEnrollments') + sumDaily('transferIns')) - (sumDaily('withdrawals') + Math.abs(sumDaily('graduates_neg')) + Math.abs(sumDaily('transfers_neg')));
                 currentStudents += netChange;
 
@@ -424,6 +423,7 @@
                 </div>
             );
         };
+
         const StatCard = ({ title, value, subValue, iconUrl, colorClass, details, yoy }) => (
             <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-l-transparent hover:border-l-brand-orange transition-all duration-200 group h-full">
                 <div className="flex flex-col items-start">
@@ -432,12 +432,26 @@
                         {iconUrl && <img src={iconUrl} alt={title} className="w-5 h-5 object-contain" />}
                     </div>
                     <h3 className="text-2xl font-bold text-gray-800 group-hover:text-brand-blue transition-colors">{value}</h3>
-                    {yoy && <div className="flex items-center mt-1 gap-1"><span className="text-xs font-medium text-gray-400">前年比</span><span className={`text-sm font-bold ${Number(yoy) >= 100 ? 'text-emerald-500' : 'text-rose-500'}`}>{yoy}%</span></div>}
+                    {yoy && (
+                        <div className="flex items-center mt-1 gap-1">
+                             <span className="text-xs font-medium text-gray-400">前年比</span>
+                             <span className={`text-sm font-bold ${Number(yoy) >= 100 ? 'text-emerald-500' : 'text-rose-500'}`}>{yoy}%</span>
+                        </div>
+                    )}
                 </div>
                 {subValue && <div className="mt-4 flex items-center text-sm"><span className="text-gray-400 font-medium">{subValue}</span></div>}
-                {details && (<div className="mt-4 pt-3 border-t border-slate-100 space-y-1">{details.map((item, idx) => (<div key={idx} className="flex justify-between text-xs text-slate-500"><span>{item.label}</span><span className="font-medium text-slate-700">{item.value}</span></div>))}</div>)}
+                {details && (
+                    <div className="mt-4 pt-3 border-t border-slate-100 space-y-1">
+                        {details.map((item, idx) => (
+                            <div key={idx} className="flex justify-between text-xs text-slate-500">
+                                <span>{item.label}</span><span className="font-medium text-slate-700">{item.value}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         );
+
         const DetailModal = ({ isOpen, onClose, data, title, color }) => {
             if (!isOpen || !data) return null;
             const chartData = data.filter(d => d.value > 0);
@@ -482,42 +496,67 @@
                 </div>
             );
         };
+
         const CsvUploader = ({ onUpload, isUploading, targetYear, setTargetYear }) => {
             const fileInputRef = useRef(null);
             const handleFileChange = (e) => {
-                const file = e.target.files[0]; if (!file) return;
+                const file = e.target.files[0];
+                if (!file) return;
                 const reader = new FileReader();
                 reader.onload = (event) => parseCSV(event.target.result);
                 reader.readAsText(file, 'Shift_JIS');
             };
             const parseCSV = (text) => {
-                const lines = text.split(/\r\n|\n/); const data = []; let headerIdx = -1;
-                for(let i=0; i<lines.length; i++) { if (lines[i].includes('勘定コード') || lines[i].includes('科目') || lines[i].includes('４月')) { headerIdx = i; break; } }
+                const lines = text.split(/\r\n|\n/);
+                const data = [];
+                let headerIdx = -1;
+                for(let i=0; i<lines.length; i++) {
+                    if (lines[i].includes('勘定コード') || lines[i].includes('科目') || lines[i].includes('４月')) { headerIdx = i; break; }
+                }
                 if (headerIdx === -1) { alert("フォーマット認識エラー"); return; }
                 const headers = lines[headerIdx].split(',').map(h => h.trim());
-                const monthMap = {}; headers.forEach((h, idx) => { const mMatch = h.match(/([０-９0-9]+)月/); if (mMatch) monthMap[h] = idx; });
+                const monthMap = {}; 
+                headers.forEach((h, idx) => { const mMatch = h.match(/([０-９0-9]+)月/); if (mMatch) monthMap[h] = idx; });
                 for (let i = headerIdx + 1; i < lines.length; i++) {
                     const line = lines[i].trim(); if (!line) continue;
                     const cols = line.split(',');
-                    const codeCol = cols[0] ? cols[0].trim() : ''; if (!/^\d/.test(codeCol)) continue;
-                    const parts = codeCol.split(/\s+/); const code = parts[0]; const name = parts.length > 1 ? parts.slice(1).join(' ') : '不明';
-                    let category = 'other'; let signMultiplier = 1;
-                    if (code.startsWith('5')) { category = 'revenue'; signMultiplier = -1; } else if (code.startsWith('6') || code.startsWith('7')) { category = 'expense'; signMultiplier = 1; } else { continue; }
+                    const codeCol = cols[0] ? cols[0].trim() : '';
+                    if (!/^\d/.test(codeCol)) continue;
+                    const parts = codeCol.split(/\s+/);
+                    const code = parts[0];
+                    const name = parts.length > 1 ? parts.slice(1).join(' ') : '不明';
+                    let category = 'other';
+                    let signMultiplier = 1;
+                    if (code.startsWith('5')) { category = 'revenue'; signMultiplier = -1; } 
+                    else if (code.startsWith('6') || code.startsWith('7')) { category = 'expense'; signMultiplier = 1; } 
+                    else { continue; }
                     Object.entries(monthMap).forEach(([monthLabel, colIdx]) => {
-                        const rawVal = cols[colIdx]; if (rawVal) { const val = Number(rawVal); if (!isNaN(val) && val !== 0) { const monthNum = parseInt(monthLabel.replace('月','').replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))); data.push({ month: monthNum, category, subCategory: name, amount: val * signMultiplier, accountCode: code }); } }
+                        const rawVal = cols[colIdx];
+                        if (rawVal) {
+                            const val = Number(rawVal);
+                            if (!isNaN(val) && val !== 0) {
+                                const monthNum = parseInt(monthLabel.replace('月','').replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)));
+                                data.push({ month: monthNum, category, subCategory: name, amount: val * signMultiplier, accountCode: code });
+                            }
+                        }
                     });
                 }
-                onUpload(data); if (fileInputRef.current) fileInputRef.current.value = "";
+                onUpload(data);
+                if (fileInputRef.current) fileInputRef.current.value = "";
             };
             return (
                 <div className="space-y-4">
                     <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg border border-gray-200">
                         <label className="text-sm font-bold text-gray-700">取り込み対象年度:</label>
-                        <select value={targetYear} onChange={(e) => setTargetYear(Number(e.target.value))} className="bg-white border border-gray-300 rounded px-3 py-1.5 text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-brand-blue">{YEARS_LIST.map(y => <option key={y} value={y}>{y}年度</option>)}</select>
+                        <select value={targetYear} onChange={(e) => setTargetYear(Number(e.target.value))} className="bg-white border border-gray-300 rounded px-3 py-1.5 text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-brand-blue">
+                            {YEARS_LIST.map(y => <option key={y} value={y}>{y}年度</option>)}
+                        </select>
                     </div>
                     <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-gray-50 transition-colors cursor-pointer group" onClick={() => fileInputRef.current?.click()}>
                         <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
-                        <div className="w-16 h-16 bg-blue-50 text-brand-blue rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">{isUploading ? <Loader2 className="w-8 h-8 animate-spin" /> : <Upload className="w-8 h-8" />}</div>
+                        <div className="w-16 h-16 bg-blue-50 text-brand-blue rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                            {isUploading ? <Loader2 className="w-8 h-8 animate-spin" /> : <Upload className="w-8 h-8" />}
+                        </div>
                         <h3 className="text-lg font-bold text-gray-700 mb-1">収支CSVファイルをアップロード</h3>
                     </div>
                 </div>
@@ -537,16 +576,12 @@
             const actualWithdrawals = summaryData.withdrawals;
             const actualStudents = summaryData.students;
 
-            // 計画の生徒数計算 (ここでは簡易的に年間計画の自動計算結果または手入力値を参照する想定だが、月次計画オブジェクトから取得)
-            // ※SchoolConsoleのupdatePlanDataで計算された結果がplanData[month]に入っている前提
-            // もしなければ0
-            let plannedStudents = 0; 
-            // 実際はSchoolConsole側で計算・保存された値を使うのが望ましいが、ここでは簡易計算
-            // 前月の生徒数などはReportView単体では不明なため、SchoolConsoleから渡されたplanDataを信頼する
+            // 計画の生徒数計算 (ここでは簡易的に月次計画の値を使用)
+            let plannedStudents = Number(monthlyPlan.students) || 0; 
 
             // KPIカード用データ
             const kpiData = [
-                { label: "在籍生徒数", value: `${actualStudents}名`, plan: "-", diff: "-" }, // 計画生徒数は別途計算が必要
+                { label: "在籍生徒数", value: `${actualStudents}名`, plan: `${plannedStudents}名`, diff: actualStudents - plannedStudents },
                 { label: "入会数", value: `${actualEnrollments}名`, plan: `${monthlyPlan.enrollments || 0}名`, diff: actualEnrollments - (monthlyPlan.enrollments || 0) },
                 { label: "退会数", value: `${actualWithdrawals}名`, plan: `${monthlyPlan.withdrawals || 0}名`, diff: actualWithdrawals - (monthlyPlan.withdrawals || 0) },
             ];
@@ -670,183 +705,6 @@
                                         </tr>
                                     </tbody>
                                 </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- ログインコンポーネント (復元) ---
-        const Login = () => {
-            const [email, setEmail] = useState("");
-            const [password, setPassword] = useState("");
-            const [error, setError] = useState("");
-            const [loading, setLoading] = useState(false);
-
-            const handleLogin = async (e) => {
-                e.preventDefault();
-                setLoading(true);
-                setError("");
-                try {
-                    const auth = getAuth();
-                    await signInWithEmailAndPassword(auth, email, password);
-                } catch (err) {
-                    setError("ログインに失敗しました。メールアドレスとパスワードを確認してください。");
-                    console.error(err);
-                } finally {
-                    setLoading(false);
-                }
-            };
-
-            return (
-                <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-                    <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
-                        <div className="text-center mb-8">
-                            <div className="w-16 h-16 bg-brand-blue rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand-blue/20">
-                                <LayoutDashboard className="w-8 h-8 text-white" />
-                            </div>
-                            <h2 className="text-2xl font-bold text-gray-800">Robot School Dashboard</h2>
-                            <p className="text-gray-500 mt-2">ログインしてダッシュボードにアクセス</p>
-                        </div>
-                        {error && (
-                            <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-start">
-                                <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
-                                <span>{error}</span>
-                            </div>
-                        )}
-                        <form onSubmit={handleLogin} className="space-y-6">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">メールアドレス</label>
-                                <input 
-                                    type="email" 
-                                    required 
-                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none transition-all"
-                                    placeholder="your@email.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">パスワード</label>
-                                <input 
-                                    type="password" 
-                                    required 
-                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none transition-all"
-                                    placeholder="••••••••"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                />
-                            </div>
-                            <button 
-                                type="submit" 
-                                disabled={loading}
-                                className="w-full bg-brand-blue text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
-                            >
-                                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><LogIn className="w-5 h-5 mr-2" /> ログイン</>}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- マイページコンポーネント (復元) ---
-        const MyPage = ({ user, onBack, showNotify }) => {
-            const [newPass, setNewPass] = useState("");
-            const [confPass, setConfPass] = useState("");
-            const [isUpdating, setIsUpdating] = useState(false);
-
-            const handleUpdate = async (e) => {
-                e.preventDefault();
-                if (newPass !== confPass) {
-                    showNotify("パスワードが一致しません", "error");
-                    return;
-                }
-                if (newPass.length < 6) {
-                    showNotify("パスワードは6文字以上で設定してください", "error");
-                    return;
-                }
-                
-                setIsUpdating(true);
-                try {
-                    await updatePassword(user, newPass);
-                    showNotify("パスワードを更新しました");
-                    setNewPass("");
-                    setConfPass("");
-                } catch (error) {
-                    console.error(error);
-                    if (error.code === 'auth/requires-recent-login') {
-                        showNotify("セキュリティのため、再ログイン後に再度お試しください", "error");
-                    } else {
-                        showNotify("更新に失敗しました: " + error.message, "error");
-                    }
-                } finally {
-                    setIsUpdating(false);
-                }
-            };
-
-            return (
-                <div className="min-h-screen bg-brand-slate p-6 fade-in">
-                    <div className="max-w-2xl mx-auto">
-                        <button onClick={onBack} className="flex items-center text-gray-500 hover:text-gray-700 mb-6 font-bold">
-                            <ArrowUp className="w-4 h-4 mr-1 -rotate-90" /> 戻る
-                        </button>
-                        
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div className="p-6 border-b border-gray-100 bg-gray-50">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border border-gray-200 text-brand-blue">
-                                        <User className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-xl font-bold text-gray-800">マイページ</h2>
-                                        <p className="text-sm text-gray-500">{user.email}</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div className="p-8">
-                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                                    <Lock className="w-5 h-5 mr-2 text-brand-blue"/>
-                                    パスワード変更
-                                </h3>
-                                <form onSubmit={handleUpdate} className="space-y-4 max-w-md">
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-600 mb-1">新しいパスワード</label>
-                                        <input 
-                                            type="password" 
-                                            className="w-full border border-gray-300 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-brand-blue"
-                                            placeholder="6文字以上"
-                                            value={newPass}
-                                            onChange={(e) => setNewPass(e.target.value)}
-                                            minLength={6}
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-600 mb-1">新しいパスワード（確認）</label>
-                                        <input 
-                                            type="password" 
-                                            className="w-full border border-gray-300 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-brand-blue"
-                                            placeholder="もう一度入力"
-                                            value={confPass}
-                                            onChange={(e) => setConfPass(e.target.value)}
-                                            minLength={6}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="pt-2">
-                                        <button 
-                                            type="submit" 
-                                            disabled={isUpdating}
-                                            className="bg-brand-blue text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50"
-                                        >
-                                            {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Save className="w-4 h-4 mr-2"/>}
-                                            パスワードを更新する
-                                        </button>
-                                    </div>
-                                </form>
                             </div>
                         </div>
                     </div>
