@@ -1150,7 +1150,7 @@
                     )}
                     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col z-10 no-print">
                         <div className="p-6 border-b border-gray-100">
-                            <div className="flex items-center space-x-2 mb-1"><School className="w-5 h-5 text-brand-orange" /><span className="font-bold text-sm text-brand-orange">校舎コンソール</span></div>
+                            <div className="flex items-center space-x-2 mb-1"><School className="w-5 h-5 text-brand-orange" /><span className="font-bold text-sm text-brand-orange">校舎</span></div>
                             <h2 className="text-xl font-bold text-gray-800 truncate">{campus.name}</h2>
                         </div>
                         <nav className="flex-1 p-4 space-y-1">
@@ -1693,7 +1693,7 @@
                     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col z-10">
                         <div className="p-6 border-b border-gray-100 flex items-center space-x-3">
                             <div className="w-8 h-8 bg-brand-blue rounded flex items-center justify-center"><LayoutDashboard className="w-5 h-5 text-white" /></div>
-                            <span className="font-bold text-lg text-gray-800">本部コンソール</span>
+                            <span className="font-bold text-lg text-gray-800">本部</span>
                         </div>
                         <nav className="flex-1 p-4 space-y-1">
                             {[{id:'dashboard',l:'サマリー',i:Activity}, {id:'pl',l:'収支・PL',i:DollarSign}, {id:'students',l:'生徒数',i:Users}, {id:'marketing',l:'マーケティング',i:Megaphone}, {id:'settings',l:'校舎管理',i:Settings}].map(t => {
@@ -2243,7 +2243,7 @@
                                             <div className="w-16 h-16 bg-brand-blue rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-brand-blue/20">
                                                 <LayoutDashboard className="w-8 h-8 text-white" />
                                             </div>
-                                            <h2 className="text-2xl font-bold text-gray-800 mb-2">本部コンソール</h2>
+                                            <h2 className="text-2xl font-bold text-gray-800 mb-2">本部</h2>
                                             <p className="text-sm text-gray-500 mb-6">全校データの閲覧・管理</p>
                                             <span className="inline-flex items-center text-brand-blue font-bold text-sm group-hover:translate-x-1 transition-transform">ログイン <ArrowRight className="ml-2 w-4 h-4" /></span>
                                         </div>
@@ -2254,7 +2254,7 @@
                                             <div className="w-16 h-16 bg-brand-orange rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-brand-orange/20">
                                                 <School className="w-8 h-8 text-white" />
                                             </div>
-                                            <h2 className="text-2xl font-bold text-gray-800 mb-2">校舎コンソール</h2>
+                                            <h2 className="text-2xl font-bold text-gray-800 mb-2">校舎</h2>
                                             <p className="text-sm text-gray-500 mb-6">日報・計画・収支入力</p>
                                             <div className="mt-4 space-y-2 max-h-48 overflow-y-auto pr-2">
                                                 {campusList.map(c => (
