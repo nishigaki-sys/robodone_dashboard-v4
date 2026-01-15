@@ -1074,12 +1074,19 @@
 
             // 計画データの更新ハンドラ
             const updatePlanData = (month, key, value, weekIndex = null) => {
+                // ▼ 追加: 全角数字を半角に変換
+                let normalizedValue = value;
+                if (typeof value === 'string') {
+                    normalizedValue = value.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+                }
+                // ▲ ここまで
+
                 setPlanData(prev => {
                     const newData = { ...prev };
                     
                     // 期首生徒数の更新
                     if (month === 'initial' && key === 'students') {
-                        newData.initialStudents = Number(value);
+                        newData.initialStudents = Number(normalizedValue); // value を normalizedValue に変更
                         return newData;
                     }
 
@@ -1090,11 +1097,11 @@
                         if (!newData[month].weeks) newData[month].weeks = [];
                         const weeks = [...newData[month].weeks];
                         if (!weeks[weekIndex]) weeks[weekIndex] = {};
-                        weeks[weekIndex] = { ...weeks[weekIndex], [key]: Number(value) };
+                        weeks[weekIndex] = { ...weeks[weekIndex], [key]: Number(normalizedValue) }; // value を normalizedValue に変更
                         newData[month].weeks = weeks;
                     } else {
                         // 月次データの更新
-                        newData[month] = { ...newData[month], [key]: Number(value) };
+                        newData[month] = { ...newData[month], [key]: Number(normalizedValue) }; // value を normalizedValue に変更
                     }
                     return newData;
                 });
