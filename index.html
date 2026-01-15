@@ -787,6 +787,82 @@
             );
         };
 
+       // ==========================================
+        // ログインコンポーネント
+        // ==========================================
+        const Login = () => {
+            const [email, setEmail] = useState("");
+            const [password, setPassword] = useState("");
+            const [error, setError] = useState("");
+            const [loading, setLoading] = useState(false);
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError("");
+                try {
+                    const auth = getAuth();
+                    await signInWithEmailAndPassword(auth, email, password);
+                } catch (err) {
+                    setError("ログインに失敗しました。メールアドレスとパスワードを確認してください。");
+                    console.error(err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+                    <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
+                        <div className="text-center mb-8">
+                            <div className="w-16 h-16 bg-brand-blue rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand-blue/20">
+                                <LayoutDashboard className="w-8 h-8 text-white" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-gray-800">Robot School Dashboard</h2>
+                            <p className="text-gray-500 mt-2">ログインしてダッシュボードにアクセス</p>
+                        </div>
+                        {error && (
+                            <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-start">
+                                <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+                                <span>{error}</span>
+                            </div>
+                        )}
+                        <form onSubmit={handleLogin} className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">メールアドレス</label>
+                                <input 
+                                    type="email" 
+                                    required 
+                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none transition-all"
+                                    placeholder="your@email.com"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">パスワード</label>
+                                <input 
+                                    type="password" 
+                                    required 
+                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none transition-all"
+                                    placeholder="••••••••"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                />
+                            </div>
+                            <button 
+                                type="submit" 
+                                disabled={loading}
+                                className="w-full bg-brand-blue text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                            >
+                                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><LogIn className="w-5 h-5 mr-2" /> ログイン</>}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
         // ==========================================
         // マイページコンポーネント
         // ==========================================
@@ -1690,7 +1766,7 @@
                             </div>
                         </div>
                     )}
-                    <aside className="w-64 bg-white border-r border-gray-200 flex flex-col z-10 no-print">
+                    <aside className="w-64 bg-white border-r border-gray-200 flex flex-col z-10">
                         <div className="p-6 border-b border-gray-100 flex items-center space-x-3">
                             <div className="w-8 h-8 bg-brand-blue rounded flex items-center justify-center"><LayoutDashboard className="w-5 h-5 text-white" /></div>
                             <span className="font-bold text-lg text-gray-800">本部コンソール</span>
@@ -1710,7 +1786,7 @@
                             <button onClick={onBack} className="flex items-center text-gray-400 hover:text-gray-600 text-sm w-full px-4 py-2"><LogOut className="w-4 h-4 mr-2" /> 戻る</button>
                         </div>
                     </aside>
-                    <main className="flex-1 overflow-y-auto no-print">
+                    <main className="flex-1 overflow-y-auto">
                         <header className="bg-white h-16 border-b border-gray-200 flex items-center justify-between px-8 sticky top-0 z-20">
                             <h2 className="text-xl font-bold text-gray-800">{{dashboard:'全校サマリー', pl:'収支・PL分析', students:'生徒数・入退会', marketing:'集客・ファネル', settings:'校舎マスタ管理'}[activeTab]}</h2>
                             <div className="flex items-center space-x-3">
@@ -1958,7 +2034,7 @@
                                 <div className="space-y-8 animate-in fade-in">
                                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                                         <StatCard title="門配数" value={Number(marketingTotals.flyers).toLocaleString()} subValue="枚" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_1eb00716-6ac0-4be4-9b78-e8e9be44198e.svg" colorClass="text-brand-blue" />
-                                        <StatCard title="T&T数" value={`${marketingTotals.touchTry}名`} subValue="回" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_c7c5b948-913f-4f31-903b-c8a91774107f.svg" colorClass="text-emerald-500" />
+                                        <StatCard title="T&T数" value={`${marketingTotals.touchTry}名`} subValue="回" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_c70b5f6d-6213-489c-bd5e-e3f6ce379f23.svg" colorClass="text-emerald-500" />
                                         <StatCard
                                             title="体験・イベント申込"
                                             value={`${marketingTotals.totalApps}名`}
@@ -1968,7 +2044,7 @@
                                         />
                                         <StatCard title="体験会実施" value={`${marketingTotals.trialActual}名`} subValue="回" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_f93e0546-f8d7-464b-b008-882ad339027e.svg" colorClass="text-brand-orange" />
                                         <StatCard title="入会数" value={`${marketingTotals.newEnrollments}名`} subValue="人" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_c7c5b948-913f-4f31-903b-c8a91774107f.svg" colorClass="text-emerald-600" />
-                                        <StatCard title="入会率" value={`${marketingTotals.rate}%`} subValue="入会 ÷ 実施" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_33bb072f-fe8f-4a20-8e5a-0bc5f53bde3d.svg" colorClass="text-rose-500" />
+                                        <StatCard title="入会率" value={`${marketingTotals.rate}%`} subValue="入会 ÷ 実施" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_d71099f5-a933-4295-9991-75c16e130f81.svg" colorClass="text-rose-500" />
                                     </div>
 
                                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-[500px]">
