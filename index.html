@@ -1266,28 +1266,31 @@
 
                                                 // 4. 日付セルを生成
                                                 const dayCells = Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
-                                                    const dateStr = `${tYear}-${('0'+(tMonth+1)).slice(-2)}-${('0'+d).slice(-2)}`; 
-                                                    const report = allData.dailyReports.find(r => r.campusId === campus.id && r.date === dateStr);
-                                                    const WeatherIcon = report && weatherMap[report.weather] ? weatherMap[report.weather].i : null;
-                                                    const isToday = dateStr === formatDateStr(new Date());
-                                                    
-                                                    return (
-                                                        <div key={d} onClick={()=>handleDateClick(dateStr)} className={`bg-white h-24 p-1 cursor-pointer hover:bg-blue-50 relative flex flex-col justify-between border border-transparent hover:border-blue-200 ${isToday?'bg-blue-50/60':''}`}>
-                                                            <div className="flex justify-between items-start">
-                                                                <span className={`text-xs font-bold ${isToday?'text-brand-blue':'text-gray-700'}`}>{d}</span>
-                                                                {WeatherIcon && <WeatherIcon className={`w-3 h-3 ${weatherMap[report.weather].c}`}/>}
-                                                            </div>
-                                                            {report && (
-                                                                <div className="text-[9px] text-gray-500 space-y-0.5">
-                                                                    <div className="flex justify-between"><span>門配</span><span className="font-bold">{report.flyers}</span></div>
-                                                                    <div className="flex justify-between"><span>T&T</span><span className="font-bold">{report.touchTry}</span></div>
-                                                                    {report.comment && <div className="absolute bottom-1 right-1 w-1.5 h-1.5 bg-brand-orange rounded-full"></div>}
-                                                                </div>
-                                                            )}
+                                                const dateStr = `${tYear}-${('0'+(tMonth+1)).slice(-2)}-${('0'+d).slice(-2)}`; 
+                                                const report = allData.dailyReports.find(r => r.campusId === campus.id && r.date === dateStr);
+                                                const WeatherIcon = report && weatherMap[report.weather] ? weatherMap[report.weather].i : null;
+                                                const isToday = dateStr === formatDateStr(new Date());
+                                                
+                                                return (
+                                                    <div key={d} onClick={()=>handleDateClick(dateStr)} className={`bg-white h-24 p-1 cursor-pointer hover:bg-blue-50 relative flex flex-col justify-between border border-transparent hover:border-blue-200 ${isToday?'bg-blue-50/60':''}`}>
+                                                        <div className="flex justify-between items-start">
+                                                            <span className={`text-xs font-bold ${isToday?'text-brand-blue':'text-gray-700'}`}>{d}</span>
+                                                            {WeatherIcon && <WeatherIcon className={`w-3 h-3 ${weatherMap[report.weather].c}`}/>}
                                                         </div>
-                                                    );
-                                                });
-
+                                                        {report && (
+                                                            <div className="text-[9px] text-gray-500 space-y-0.5">
+                                                                <div className="flex justify-between"><span>門配</span><span className="font-bold">{report.flyers}</span></div>
+                                                                <div className="flex justify-between"><span>T&T</span><span className="font-bold">{report.touchTry}</span></div>
+                                                                {/* ▼ 追加: 体験会実施数を表示 ▼ */}
+                                                                <div className="flex justify-between"><span>体験</span><span className="font-bold">{report.trialLessons}</span></div>
+                                                                {/* ▲ ここまで ▲ */}
+                                                                
+                                                                {report.comment && <div className="absolute bottom-1 right-1 w-1.5 h-1.5 bg-brand-orange rounded-full"></div>}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            });
                                                 return [...emptyCells, ...dayCells];
                                             })()}
                                         </div>
