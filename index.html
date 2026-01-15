@@ -54,18 +54,19 @@
 
         /* 印刷用スタイル */
         @media print {
-            body { background-color: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            body { background-color: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
             .no-print { display: none !important; }
             .print-only { display: block !important; }
             .page-break { page-break-before: always; }
             @page { size: A4; margin: 5mm; }
-            .report-container { width: 100%; max-width: 200mm; margin: 0 auto; }
+            .report-container { width: 100%; max-width: 210mm; margin: 0 auto; }
             .report-table { width: 100%; border-collapse: collapse; font-size: 9px; }
             .report-table th, .report-table td { border: 1px solid #333; padding: 3px; text-align: center; }
             .report-table th { background-color: #f0f0f0; font-weight: bold; }
             .report-section-title { font-size: 11px; font-weight: bold; border-left: 4px solid #333; padding-left: 5px; margin: 10px 0 5px 0; }
         }
         .print-only { display: none; }
+        .report-preview-wrapper { width: 210mm; min-height: 297mm; background: white; margin: 0 auto; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
     </style>
 </head>
 <body>
@@ -187,7 +188,7 @@
         };
 
         // ==========================================
-        // 2. Data Processing Logic (修正済み)
+        // 2. Data Processing Logic
         // ==========================================
         const determineDetailedCategory = (code) => {
             if (!code) return 'other';
@@ -331,7 +332,6 @@
                     };
                 });
 
-                // 【修正】在籍生徒数の計算
                 const netChange = (sumDaily('newEnrollments') + sumDaily('transferIns')) - (sumDaily('withdrawals') + Math.abs(sumDaily('graduates_neg')) + Math.abs(sumDaily('transfers_neg')));
                 currentStudents += netChange;
 
@@ -341,7 +341,7 @@
                     trialApp: sumDaily('trialApp'), eventApp: sumDaily('eventApp'),
                     trialScheduled: sumDaily('trialScheduled'), eventScheduled: sumDaily('eventScheduled'),
                     trialActual: sumDaily('trialActual'), 
-                    students: currentStudents, // 修正: 計算した生徒数をセット
+                    students: currentStudents,
                     ...currentFin, expense: currentFin.expenseTotal, profit: currentFin.revenue - currentFin.expenseTotal, detailItems: currentFin.details,
                     transferIns: sumDaily('transferIns'), withdrawals: sumDaily('withdrawals'),
                     withdrawals_neg: sumDaily('withdrawals_neg'), graduates_neg: sumDaily('graduates_neg'), transfers_neg: sumDaily('transfers_neg'),
@@ -379,7 +379,6 @@
                     return acc;
                 }, { name: g.name, detailItems: {} });
                 
-                // 【修正】期間内の最終月の生徒数を、その期間の生徒数として採用する
                 if (targets.length > 0) { 
                     agg.students = targets[targets.length - 1].students; 
                 }
@@ -502,7 +501,7 @@
         };
         
         // --- 帳票出力コンポーネント (New: 予実対比) ---
-        const ReportView = ({ year, month, campus, dailyData, weeklyData, planData }) => {
+        const ReportView = ({ year, month, campus, dailyData, weeklyData, planData, summaryData }) => {
             const weatherMap = { sunny: '晴', cloudy: '曇', rainy: '雨', snowy: '雪', closed: '-' };
             // 週次計画データの取得
             const weeklyPlans = planData[month]?.weeks || [];
@@ -510,8 +509,25 @@
             // 差異計算ヘルパー
             const getDiff = (plan, actual) => (actual || 0) - (plan || 0);
 
+            // 計画データ取得（サマリー用）
+            const monthlyPlan = planData[month] || {};
+            // 実績データ取得
+            const actualEnrollments = summaryData.newEnrollments;
+            const actualWithdrawals = summaryData.withdrawals;
+            const actualStudents = summaryData.students;
+
+            // 計画の生徒数計算 (ここでは簡易的に月次計画の値を使用)
+            let plannedStudents = Number(monthlyPlan.students) || 0; 
+
+            // KPIカード用データ
+            const kpiData = [
+                { label: "在籍生徒数", value: `${actualStudents}名`, plan: `${plannedStudents}名`, diff: actualStudents - plannedStudents },
+                { label: "入会数", value: `${actualEnrollments}名`, plan: `${monthlyPlan.enrollments || 0}名`, diff: actualEnrollments - (monthlyPlan.enrollments || 0) },
+                { label: "退会数", value: `${actualWithdrawals}名`, plan: `${monthlyPlan.withdrawals || 0}名`, diff: actualWithdrawals - (monthlyPlan.withdrawals || 0) },
+            ];
+
             return (
-                <div className="report-container font-serif text-black p-8 bg-white min-h-screen">
+                <div className="report-preview-wrapper font-serif text-black p-12 relative print:p-0 print:w-full print:shadow-none">
                     <div className="flex justify-between items-end mb-6 border-b-2 border-black pb-2">
                         <div>
                             <h1 className="text-2xl font-bold">ロボ団教室実績管理表 {year}年{month}</h1>
@@ -522,8 +538,22 @@
                         </div>
                     </div>
 
+                    {/* KPIカードセクション */}
+                    <div className="grid grid-cols-3 gap-4 mb-6">
+                        {kpiData.map((kpi, i) => (
+                            <div key={i} className="border border-gray-300 p-3 rounded bg-gray-50 flex flex-col items-center">
+                                <div className="text-xs font-bold text-gray-500 mb-1">{kpi.label}</div>
+                                <div className="text-xl font-bold mb-1">{kpi.value}</div>
+                                <div className="text-xs flex gap-2 text-gray-600">
+                                    <span>計画: {kpi.plan}</span>
+                                    <span className={kpi.diff < 0 ? 'text-red-600' : 'text-blue-600'}>差異: {kpi.diff > 0 ? '+' : ''}{kpi.diff}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
                     <div className="grid grid-cols-1 gap-6">
-                        {/* 1. 日別実績 (変更なし) */}
+                        {/* 1. 日別実績 */}
                         <div>
                             <div className="report-section-title">1. 日別実績</div>
                             <table className="report-table">
@@ -654,185 +684,8 @@
                 </div>
             );
         };
-        
-        // --- ログインコンポーネント ---
-        const Login = () => {
-            const [email, setEmail] = useState("");
-            const [password, setPassword] = useState("");
-            const [error, setError] = useState("");
-            const [loading, setLoading] = useState(false);
-
-            const handleLogin = async (e) => {
-                e.preventDefault();
-                setLoading(true);
-                setError("");
-                try {
-                    const auth = getAuth();
-                    await signInWithEmailAndPassword(auth, email, password);
-                } catch (err) {
-                    setError("ログインに失敗しました。メールアドレスとパスワードを確認してください。");
-                    console.error(err);
-                } finally {
-                    setLoading(false);
-                }
-            };
-
-            return (
-                <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-                    <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
-                        <div className="text-center mb-8">
-                            <div className="w-16 h-16 bg-brand-blue rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand-blue/20">
-                                <LayoutDashboard className="w-8 h-8 text-white" />
-                            </div>
-                            <h2 className="text-2xl font-bold text-gray-800">Robot School Dashboard</h2>
-                            <p className="text-gray-500 mt-2">ログインしてダッシュボードにアクセス</p>
-                        </div>
-                        {error && (
-                            <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-start">
-                                <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
-                                <span>{error}</span>
-                            </div>
-                        )}
-                        <form onSubmit={handleLogin} className="space-y-6">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">メールアドレス</label>
-                                <input 
-                                    type="email" 
-                                    required 
-                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none transition-all"
-                                    placeholder="your@email.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">パスワード</label>
-                                <input 
-                                    type="password" 
-                                    required 
-                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none transition-all"
-                                    placeholder="••••••••"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                />
-                            </div>
-                            <button 
-                                type="submit" 
-                                disabled={loading}
-                                className="w-full bg-brand-blue text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
-                            >
-                                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><LogIn className="w-5 h-5 mr-2" /> ログイン</>}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- マイページコンポーネント ---
-        const MyPage = ({ user, onBack, showNotify }) => {
-            const [newPass, setNewPass] = useState("");
-            const [confPass, setConfPass] = useState("");
-            const [isUpdating, setIsUpdating] = useState(false);
-
-            const handleUpdate = async (e) => {
-                e.preventDefault();
-                if (newPass !== confPass) {
-                    showNotify("パスワードが一致しません", "error");
-                    return;
-                }
-                if (newPass.length < 6) {
-                    showNotify("パスワードは6文字以上で設定してください", "error");
-                    return;
-                }
-                
-                setIsUpdating(true);
-                try {
-                    await updatePassword(user, newPass);
-                    showNotify("パスワードを更新しました");
-                    setNewPass("");
-                    setConfPass("");
-                } catch (error) {
-                    console.error(error);
-                    if (error.code === 'auth/requires-recent-login') {
-                        showNotify("セキュリティのため、再ログイン後に再度お試しください", "error");
-                    } else {
-                        showNotify("更新に失敗しました: " + error.message, "error");
-                    }
-                } finally {
-                    setIsUpdating(false);
-                }
-            };
-
-            return (
-                <div className="min-h-screen bg-brand-slate p-6 fade-in">
-                    <div className="max-w-2xl mx-auto">
-                        <button onClick={onBack} className="flex items-center text-gray-500 hover:text-gray-700 mb-6 font-bold">
-                            <ArrowUp className="w-4 h-4 mr-1 -rotate-90" /> 戻る
-                        </button>
-                        
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div className="p-6 border-b border-gray-100 bg-gray-50">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border border-gray-200 text-brand-blue">
-                                        <User className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-xl font-bold text-gray-800">マイページ</h2>
-                                        <p className="text-sm text-gray-500">{user.email}</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div className="p-8">
-                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                                    <Lock className="w-5 h-5 mr-2 text-brand-blue"/>
-                                    パスワード変更
-                                </h3>
-                                <form onSubmit={handleUpdate} className="space-y-4 max-w-md">
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-600 mb-1">新しいパスワード</label>
-                                        <input 
-                                            type="password" 
-                                            className="w-full border border-gray-300 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-brand-blue"
-                                            placeholder="6文字以上"
-                                            value={newPass}
-                                            onChange={(e) => setNewPass(e.target.value)}
-                                            minLength={6}
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-600 mb-1">新しいパスワード（確認）</label>
-                                        <input 
-                                            type="password" 
-                                            className="w-full border border-gray-300 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-brand-blue"
-                                            placeholder="もう一度入力"
-                                            value={confPass}
-                                            onChange={(e) => setConfPass(e.target.value)}
-                                            minLength={6}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="pt-2">
-                                        <button 
-                                            type="submit" 
-                                            disabled={isUpdating}
-                                            className="bg-brand-blue text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50"
-                                        >
-                                            {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Save className="w-4 h-4 mr-2"/>}
-                                            パスワードを更新する
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
         // ==========================================
-        // 4. School Console Component (自動計算・累計表示対応版)
+        // 4. School Console Component (帳票レイアウト修正・KPI連携版)
         // ==========================================
         function SchoolConsole({ onBack, campus, allData, selectedYear, setSelectedYear, refreshData, showNotify, isAdmin }) {
             const [activeTab, setActiveTab] = useState('daily');
@@ -841,7 +694,7 @@
             const [reportDate, setReportDate] = useState(formatDateStr(new Date()));
             const [inputData, setInputData] = useState({ weather: 'sunny', flyers: 0, touch: 0, trial: 0, comment: '' });
             const [uploading, setUploading] = useState(false);
-            const [planData, setPlanData] = useState({ initialStudents: 0 }); // 初期値を設定
+            const [planData, setPlanData] = useState({ initialStudents: 0 }); 
             const [isSavingPlan, setIsSavingPlan] = useState(false);
             const [uploadTargetYear, setUploadTargetYear] = useState(selectedYear);
             const [isInputModalOpen, setIsInputModalOpen] = useState(false);
@@ -853,7 +706,7 @@
             }, [campus, allData, selectedYear]);
 
             const currentMonthData = useMemo(() => {
-                return dashboardData.find(d => d.name === selectedMonth) || { daily: [], weekly: [] };
+                return dashboardData.find(d => d.name === selectedMonth) || { daily: [], weekly: [], students: 0, newEnrollments: 0, withdrawals: 0 };
             }, [dashboardData, selectedMonth]);
 
             const lastUploadInfo = useMemo(() => {
@@ -869,12 +722,11 @@
             }, [selectedYear, selectedMonth]);
 
             useEffect(() => {
-                if (activeTab === 'plan' && campus) {
+                if (activeTab === 'plan' || activeTab === 'report') {
                     const fetchPlan = async () => {
                         try {
                             const docRef = doc(db, "campus_plans", `${campus.id}_${selectedYear}`);
                             const docSnap = await getDoc(docRef);
-                            // 既存データがあればセット、なければ初期値
                             setPlanData(docSnap.exists() ? { initialStudents: 0, ...docSnap.data().plans } : { initialStudents: 0 });
                         } catch (e) { console.error(e); }
                     };
@@ -934,7 +786,6 @@
                 setPlanData(prev => {
                     const newData = { ...prev };
                     
-                    // 期首生徒数の更新
                     if (month === 'initial' && key === 'students') {
                         newData.initialStudents = Number(value);
                         return newData;
@@ -943,14 +794,12 @@
                     if (!newData[month]) newData[month] = {};
                     
                     if (weekIndex !== null) {
-                        // 週次データの更新
                         if (!newData[month].weeks) newData[month].weeks = [];
                         const weeks = [...newData[month].weeks];
                         if (!weeks[weekIndex]) weeks[weekIndex] = {};
                         weeks[weekIndex] = { ...weeks[weekIndex], [key]: Number(value) };
                         newData[month].weeks = weeks;
                     } else {
-                        // 月次データの更新
                         newData[month] = { ...newData[month], [key]: Number(value) };
                     }
                     return newData;
@@ -981,7 +830,7 @@
                 }), { touchTry:0, flyers:0, trialApp:0, trialParticipation:0, enrollments:0 });
             }, [planData, selectedMonth]);
             
-            const handleCsvUpload = async (parsedData) => { /* 前回のコードと同じ実装 */
+            const handleCsvUpload = async (parsedData) => {
                 if (!campus) return;
                 setUploading(true);
                 try {
@@ -1020,7 +869,7 @@
 
             return (
                 <div className="flex h-screen bg-brand-slate overflow-hidden fade-in">
-                    {/* レポート印刷用ビュー */}
+                    {/* レポート印刷用ビュー: 画面には表示せず印刷時のみ表示 */}
                     <div className="print-only">
                          <ReportView 
                             year={displayCalendarYear} 
@@ -1029,6 +878,11 @@
                             dailyData={currentMonthData.daily} 
                             weeklyData={currentMonthData.weekly} 
                             planData={planData} 
+                            summaryData={{
+                                students: currentMonthData.students,
+                                newEnrollments: currentMonthData.newEnrollments,
+                                withdrawals: currentMonthData.withdrawals
+                            }}
                          />
                     </div>
 
@@ -1135,7 +989,7 @@
                                 </div>
                             )}
 
-                            {/* 計画策定タブ (大幅改修) */}
+                            {/* 計画策定タブ */}
                             {activeTab === 'plan' && (
                                 <div className="space-y-6 animate-in fade-in">
                                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -1318,6 +1172,11 @@
                                                     dailyData={currentMonthData.daily} 
                                                     weeklyData={currentMonthData.weekly} 
                                                     planData={planData} 
+                                                    summaryData={{
+                                                        students: currentMonthData.students,
+                                                        newEnrollments: currentMonthData.newEnrollments,
+                                                        withdrawals: currentMonthData.withdrawals
+                                                    }}
                                                 />
                                             </div>
                                         </div>
@@ -1905,9 +1764,13 @@
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {campusList.map((c, index)=>(
-                                            <div key={c.id} className="p-4 border border-gray-200 rounded-lg bg-gray-50 flex justify-between items-center">
+                                            <div key={c.id} className="p-4 border border-gray-200 rounded-lg bg-gray-50 flex justify-between items-center group hover:shadow-md transition-shadow">
                                                 <div><div className="font-bold text-gray-700">{c.name}</div><div className="text-xs text-gray-400">{c.id}</div></div>
-                                                <div className="flex gap-2">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex gap-1 mr-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                                                        <button onClick={() => handleReorder(index, -1)} disabled={index === 0 || isReordering} className="p-1 hover:text-brand-blue disabled:opacity-20"><ArrowUp className="w-4 h-4"/></button>
+                                                        <button onClick={() => handleReorder(index, 1)} disabled={index === campusList.length - 1 || isReordering} className="p-1 hover:text-brand-blue disabled:opacity-20"><ArrowDown className="w-4 h-4"/></button>
+                                                    </div>
                                                     <button onClick={() => openEditCampus(c)} className="text-gray-400 hover:text-brand-blue p-2"><Edit2 className="w-4 h-4"/></button>
                                                     <button onClick={() => handleDeleteCampus(c.id, c.name)} className="text-gray-400 hover:text-red-500 p-2"><Trash2 className="w-4 h-4"/></button>
                                                 </div>
@@ -1931,6 +1794,7 @@
             const [consoleMode, setConsoleMode] = useState('select'); 
             const [selectedCampusId, setSelectedCampusId] = useState(null);
             const [campusList, setCampusList] = useState([]);
+            // 現在日付から初期年度を自動判定 (1-3月なら前年が年度)
             const [selectedYear, setSelectedYear] = useState(() => { const d = new Date(); return d.getMonth() < 3 ? d.getFullYear() - 1 : d.getFullYear(); });
             const [notification, setNotification] = useState(null);
             const [isSyncing, setIsSyncing] = useState(false);
