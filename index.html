@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Robot School Dashboard V4.1</title>
     
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -58,12 +62,51 @@
             .no-print { display: none !important; }
             .print-only { display: block !important; }
             .page-break { page-break-before: always; }
-            @page { size: A4; margin: 5mm; }
-            .report-container { width: 100%; max-width: 200mm; margin: 0 auto; }
-            .report-table { width: 100%; border-collapse: collapse; font-size: 9px; }
-            .report-table th, .report-table td { border: 1px solid #333; padding: 3px; text-align: center; }
-            .report-table th { background-color: #f0f0f0; font-weight: bold; }
-            .report-section-title { font-size: 11px; font-weight: bold; border-left: 4px solid #333; padding-left: 5px; margin: 10px 0 5px 0; }
+            @page { size: A4; margin: 10mm; } /* 余白を少し広めに確保 */
+            .report-container { width: 100%; max-width: 190mm; margin: 0 auto; }
+        }
+        
+        /* 画面プレビューと印刷共通のテーブルスタイル */
+        .print-only { display: none; } /* 通常時は非表示 */
+        
+        .report-preview-wrapper { 
+            width: 210mm; 
+            min-height: 297mm; 
+            background: white; 
+            margin: 0 auto; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box; /* パディングを含める */
+        }
+
+        .report-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 10px; /* 9pxから10pxへサイズアップ */
+            margin-bottom: 10px;
+        }
+        
+        .report-table th, .report-table td { 
+            border: 1px solid #444; /* 枠線を少し濃く */
+            padding: 4px 2px; /* 上下左右のバランスを調整 */
+            text-align: center; 
+            vertical-align: middle;
+            line-height: 1.3;
+        }
+
+        .report-table th { 
+            background-color: #f3f4f6; 
+            font-weight: 700; 
+            white-space: nowrap; /* ヘッダーの文字崩れを防止 */
+            color: #1f2937;
+        }
+
+        .report-section-title { 
+            font-size: 12px; 
+            font-weight: bold; 
+            border-left: 5px solid #1E51A2; /* ブランドカラーを使用 */
+            padding-left: 8px; 
+            margin: 20px 0 8px 0; 
+            color: #1f2937;
         }
         .print-only { display: none; }
         .report-preview-wrapper { width: 210mm; min-height: 297mm; background: white; margin: 0 auto; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
@@ -581,7 +624,6 @@
             const actualWithdrawals = summaryData.withdrawals;
             const actualStudents = summaryData.students;
 
-            // 計画の生徒数計算 (ここでは簡易的に月次計画の値を使用)
             let plannedStudents = Number(monthlyPlan.students) || 0; 
 
             // KPIカード用データ
@@ -592,51 +634,59 @@
             ];
 
             return (
-                <div className="report-preview-wrapper text-black p-12 relative print:p-0 print:w-full print:shadow-none" style={{ fontFamily: '"Noto Sans JP", sans-serif' }}>
-                    <div className="flex justify-between items-end mb-6 border-b-2 border-black pb-2">
+                <div className="report-preview-wrapper p-10 relative print:p-0 print:w-full print:shadow-none" style={{ fontFamily: '"Noto Sans JP", sans-serif', color: '#111' }}>
+                    <div className="flex justify-between items-end mb-8 border-b-2 border-gray-800 pb-3">
                         <div>
-                            <h1 className="text-2xl font-bold">ロボ団教室実績管理表 {year}年{month}</h1>
-                            <div className="text-sm mt-1">校舎名: {campus.name} (ID: {campus.id})</div>
+                            <h1 className="text-2xl font-bold text-gray-900">ロボ団教室実績管理表 {year}年{month}</h1>
+                            <div className="text-sm mt-1 font-medium text-gray-700">校舎名: {campus.name} (ID: {campus.id})</div>
                         </div>
-                        <div className="text-sm text-right">
+                        <div className="text-xs text-right text-gray-500">
                             <div>作成日: {new Date().toLocaleDateString()}</div>
                         </div>
                     </div>
 
                     {/* KPIカードセクション */}
-                    <div className="grid grid-cols-3 gap-4 mb-6">
+                    <div className="grid grid-cols-3 gap-4 mb-8">
                         {kpiData.map((kpi, i) => (
-                            <div key={i} className="border border-gray-300 p-3 rounded bg-gray-50 flex flex-col items-center">
+                            <div key={i} className="border border-gray-300 p-3 rounded bg-white shadow-sm flex flex-col items-center">
                                 <div className="text-xs font-bold text-gray-500 mb-1">{kpi.label}</div>
-                                <div className="text-xl font-bold mb-1">{kpi.value}</div>
-                                <div className="text-xs flex gap-2 text-gray-600">
+                                <div className="text-2xl font-bold mb-1 text-gray-800">{kpi.value}</div>
+                                <div className="text-xs flex gap-3 text-gray-600 font-medium">
                                     <span>計画: {kpi.plan}</span>
-                                    <span className={typeof kpi.diff === 'number' && kpi.diff < 0 ? 'text-red-600' : 'text-blue-600'}>差異: {typeof kpi.diff === 'number' && kpi.diff > 0 ? '+' : ''}{kpi.diff}</span>
+                                    <span className={typeof kpi.diff === 'number' && kpi.diff < 0 ? 'text-red-600' : 'text-blue-600'}>
+                                        差異: {typeof kpi.diff === 'number' && kpi.diff > 0 ? '+' : ''}{kpi.diff}
+                                    </span>
                                 </div>
                             </div>
                         ))}
                     </div>
 
-                    <div className="grid grid-cols-1 gap-6">
+                    <div className="space-y-6">
                         {/* 1. 日別実績 */}
                         <div>
                             <div className="report-section-title">1. 日別実績</div>
                             <table className="report-table">
                                 <thead>
-                                    <tr className="bg-gray-100">
-                                        <th className="w-12">日付</th><th className="w-8">曜</th><th className="w-12">天候</th>
-                                        <th>門配</th><th>T&T</th><th className="bg-blue-50">体験申込</th><th className="bg-yellow-50">参加予定</th><th className="bg-orange-50">参加実績</th><th className="bg-green-50">入会数</th><th className="w-24">備考</th>
+                                    <tr>
+                                        {/* 幅指定を削除し、自動調整させる */}
+                                        <th>日付</th><th>曜</th><th>天候</th>
+                                        <th>門配</th><th>T&T</th>
+                                        <th className="bg-blue-50">体験申込</th>
+                                        <th className="bg-yellow-50">参加予定</th>
+                                        <th className="bg-orange-50">参加実績</th>
+                                        <th className="bg-green-50">入会数</th>
+                                        <th style={{width: '20%'}}>備考</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {dailyData.map((day, idx) => (
                                         <tr key={idx}>
-                                            <td>{day.name}</td>
-                                            <td className={day.dayOfWeek==='土'?'text-blue-600':day.dayOfWeek==='日'?'text-red-600':''}>{day.dayOfWeek}</td>
+                                            <td>{day.name.replace('日','')}</td>
+                                            <td className={day.dayOfWeek==='土'?'text-blue-600 font-bold':day.dayOfWeek==='日'?'text-red-600 font-bold':''}>{day.dayOfWeek}</td>
                                             <td>{weatherMap[day.weather] || day.weather || '-'}</td>
                                             <td>{day.flyers || ''}</td><td>{day.touchTry || ''}</td>
                                             <td className="bg-blue-50">{day.trialApp || ''}</td><td className="bg-yellow-50">{day.trialScheduled || ''}</td><td className="bg-orange-50">{day.trialActual || ''}</td><td className="bg-green-50">{day.newEnrollments || ''}</td>
-                                            <td></td>
+                                            <td className="text-left px-2 text-[9px]">{/* 備考があればここへ */}</td>
                                         </tr>
                                     ))}
                                     <tr className="font-bold bg-gray-100">
@@ -653,13 +703,14 @@
                             </table>
                         </div>
 
-                        {/* 2. 集客活動 (予実対比) */}
-                        <div className="grid grid-cols-2 gap-6">
+                        {/* 2. 集客活動 & 3. 体験・入会 (左右配置) */}
+                        <div className="grid grid-cols-2 gap-8 items-start">
+                            {/* 左側：集客活動 */}
                             <div>
                                 <div className="report-section-title">2. 集客活動 (週次)</div>
                                 <table className="report-table">
                                     <thead>
-                                        <tr className="bg-gray-100"><th rowSpan="2">期間</th><th colSpan="3">T&T</th><th colSpan="3">門配</th></tr>
+                                        <tr><th rowSpan="2">期間</th><th colSpan="3">T&T</th><th colSpan="3">門配</th></tr>
                                         <tr className="bg-gray-50"><th>計画</th><th>実績</th><th>差異</th><th>計画</th><th>実績</th><th>差異</th></tr>
                                     </thead>
                                     <tbody>
@@ -667,9 +718,9 @@
                                             const plan = weeklyPlans[i] || {};
                                             return (
                                                 <tr key={i}>
-                                                    <td>{w.label}</td>
-                                                    <td>{plan.touchTry || 0}</td><td>{w.touchTry}</td><td className={getDiff(plan.touchTry, w.touchTry)<0 ? 'text-red-600':''}>{getDiff(plan.touchTry, w.touchTry)}</td>
-                                                    <td>{plan.flyers || 0}</td><td>{w.flyers}</td><td className={getDiff(plan.flyers, w.flyers)<0 ? 'text-red-600':''}>{getDiff(plan.flyers, w.flyers)}</td>
+                                                    <td className="text-xs">{w.label}</td>
+                                                    <td>{plan.touchTry || 0}</td><td>{w.touchTry}</td><td className={getDiff(plan.touchTry, w.touchTry)<0 ? 'text-red-600 font-bold':''}>{getDiff(plan.touchTry, w.touchTry)}</td>
+                                                    <td>{plan.flyers || 0}</td><td>{w.flyers}</td><td className={getDiff(plan.flyers, w.flyers)<0 ? 'text-red-600 font-bold':''}>{getDiff(plan.flyers, w.flyers)}</td>
                                                 </tr>
                                             );
                                         })}
@@ -682,12 +733,12 @@
                                 </table>
                             </div>
                             
-                            {/* 3. 体験・入会 (予実対比) */}
+                            {/* 右側：体験・入会 */}
                             <div>
                                 <div className="report-section-title">3. 体験・入会 (週次)</div>
                                 <table className="report-table">
                                     <thead>
-                                        <tr className="bg-gray-100"><th rowSpan="2">期間</th><th colSpan="3">体験申込</th><th colSpan="3">体験参加</th><th colSpan="3">入会</th></tr>
+                                        <tr><th rowSpan="2">期間</th><th colSpan="3">体験申込</th><th colSpan="3">体験参加</th><th colSpan="3">入会</th></tr>
                                         <tr className="bg-gray-50"><th>計画</th><th>実績</th><th>差異</th><th>計画</th><th>実績</th><th>差異</th><th>計画</th><th>実績</th><th>差異</th></tr>
                                     </thead>
                                     <tbody>
@@ -695,10 +746,10 @@
                                             const plan = weeklyPlans[i] || {};
                                             return (
                                                 <tr key={i}>
-                                                    <td>{w.label}</td>
-                                                    <td>{plan.trialApp || 0}</td><td>{w.trialApp}</td><td className={getDiff(plan.trialApp, w.trialApp)<0 ? 'text-red-600':''}>{getDiff(plan.trialApp, w.trialApp)}</td>
-                                                    <td>{plan.trialParticipation || 0}</td><td>{w.trialActual}</td><td className={getDiff(plan.trialParticipation, w.trialActual)<0 ? 'text-red-600':''}>{getDiff(plan.trialParticipation, w.trialActual)}</td>
-                                                    <td>{plan.enrollments || 0}</td><td>{w.newEnrollments}</td><td className={getDiff(plan.enrollments, w.newEnrollments)<0 ? 'text-red-600':''}>{getDiff(plan.enrollments, w.newEnrollments)}</td>
+                                                    <td className="text-xs">{w.label}</td>
+                                                    <td>{plan.trialApp || 0}</td><td>{w.trialApp}</td><td className={getDiff(plan.trialApp, w.trialApp)<0 ? 'text-red-600 font-bold':''}>{getDiff(plan.trialApp, w.trialApp)}</td>
+                                                    <td>{plan.trialParticipation || 0}</td><td>{w.trialActual}</td><td className={getDiff(plan.trialParticipation, w.trialActual)<0 ? 'text-red-600 font-bold':''}>{getDiff(plan.trialParticipation, w.trialActual)}</td>
+                                                    <td>{plan.enrollments || 0}</td><td>{w.newEnrollments}</td><td className={getDiff(plan.enrollments, w.newEnrollments)<0 ? 'text-red-600 font-bold':''}>{getDiff(plan.enrollments, w.newEnrollments)}</td>
                                                 </tr>
                                             );
                                         })}
