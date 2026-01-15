@@ -53,8 +53,18 @@
         .modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
 
         /* 印刷用スタイル */
-        @media print {
-            body { background-color: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
+            @media print {
+            body { 
+                background-color: white; 
+                -webkit-print-color-adjust: exact; 
+                print-color-adjust: exact; 
+                margin: 0; 
+                padding: 0;
+                /* 以下を追加: 全体を80%に縮小してA4 1枚に収める */
+                transform: scale(0.8); 
+                transform-origin: top left; 
+                width: 125%; /* 縮小した分、横幅を広げる (100 / 0.8 = 125) */
+            }
             .no-print { display: none !important; }
             .print-only { display: block !important; }
             .page-break { page-break-before: always; }
