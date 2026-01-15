@@ -189,7 +189,6 @@
         // ==========================================
         // 2. Data Processing Logic
         // ==========================================
-        // (省略なし: 前回と同じロジックを使用)
         const determineDetailedCategory = (code) => {
             if (!code) return 'other';
             const c = String(code);
@@ -328,6 +327,7 @@
             let groups = [];
             if (periodType === 'half') { groups = [{ name: '上期', months: ['4月','5月','6月','7月','8月','9月'] }, { name: '下期', months: ['10月','11月','12月','1月','2月','3月'] }]; } 
             else if (periodType === 'quarter') { groups = [{ name: '第1四半期', months: ['4月','5月','6月'] }, { name: '第2四半期', months: ['7月','8月','9月'] }, { name: '第3四半期', months: ['10月','11月','12月'] }, { name: '第4四半期', months: ['1月','2月','3月'] }]; }
+
             return groups.map(g => {
                 const targets = monthlyData.filter(d => g.months.includes(d.name));
                 const agg = targets.reduce((acc, curr) => {
@@ -381,7 +381,7 @@
                 {details && (<div className="mt-4 pt-3 border-t border-slate-100 space-y-1">{details.map((item, idx) => (<div key={idx} className="flex justify-between text-xs text-slate-500"><span>{item.label}</span><span className="font-medium text-slate-700">{item.value}</span></div>))}</div>)}
             </div>
         );
-        const DetailModal = ({ isOpen, onClose, data, title, color }) => { if (!isOpen || !data) return null; return null; }; // 簡略化
+        const DetailModal = ({ isOpen, onClose, data, title, color }) => { if (!isOpen || !data) return null; return null; }; 
         const CsvUploader = ({ onUpload, isUploading, targetYear, setTargetYear }) => {
             const fileInputRef = useRef(null);
             const handleFileChange = (e) => {
@@ -577,8 +577,185 @@
                 </div>
             );
         };
+        
+        // --- ログインコンポーネント ---
+        const Login = () => {
+            const [email, setEmail] = useState("");
+            const [password, setPassword] = useState("");
+            const [error, setError] = useState("");
+            const [loading, setLoading] = useState(false);
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError("");
+                try {
+                    const auth = getAuth();
+                    await signInWithEmailAndPassword(auth, email, password);
+                } catch (err) {
+                    setError("ログインに失敗しました。メールアドレスとパスワードを確認してください。");
+                    console.error(err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+                    <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
+                        <div className="text-center mb-8">
+                            <div className="w-16 h-16 bg-brand-blue rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand-blue/20">
+                                <LayoutDashboard className="w-8 h-8 text-white" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-gray-800">Robot School Dashboard</h2>
+                            <p className="text-gray-500 mt-2">ログインしてダッシュボードにアクセス</p>
+                        </div>
+                        {error && (
+                            <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-start">
+                                <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+                                <span>{error}</span>
+                            </div>
+                        )}
+                        <form onSubmit={handleLogin} className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">メールアドレス</label>
+                                <input 
+                                    type="email" 
+                                    required 
+                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none transition-all"
+                                    placeholder="your@email.com"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">パスワード</label>
+                                <input 
+                                    type="password" 
+                                    required 
+                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none transition-all"
+                                    placeholder="••••••••"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                />
+                            </div>
+                            <button 
+                                type="submit" 
+                                disabled={loading}
+                                className="w-full bg-brand-blue text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                            >
+                                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><LogIn className="w-5 h-5 mr-2" /> ログイン</>}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- マイページコンポーネント ---
+        const MyPage = ({ user, onBack, showNotify }) => {
+            const [newPass, setNewPass] = useState("");
+            const [confPass, setConfPass] = useState("");
+            const [isUpdating, setIsUpdating] = useState(false);
+
+            const handleUpdate = async (e) => {
+                e.preventDefault();
+                if (newPass !== confPass) {
+                    showNotify("パスワードが一致しません", "error");
+                    return;
+                }
+                if (newPass.length < 6) {
+                    showNotify("パスワードは6文字以上で設定してください", "error");
+                    return;
+                }
+                
+                setIsUpdating(true);
+                try {
+                    await updatePassword(user, newPass);
+                    showNotify("パスワードを更新しました");
+                    setNewPass("");
+                    setConfPass("");
+                } catch (error) {
+                    console.error(error);
+                    if (error.code === 'auth/requires-recent-login') {
+                        showNotify("セキュリティのため、再ログイン後に再度お試しください", "error");
+                    } else {
+                        showNotify("更新に失敗しました: " + error.message, "error");
+                    }
+                } finally {
+                    setIsUpdating(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-brand-slate p-6 fade-in">
+                    <div className="max-w-2xl mx-auto">
+                        <button onClick={onBack} className="flex items-center text-gray-500 hover:text-gray-700 mb-6 font-bold">
+                            <ArrowUp className="w-4 h-4 mr-1 -rotate-90" /> 戻る
+                        </button>
+                        
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="p-6 border-b border-gray-100 bg-gray-50">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border border-gray-200 text-brand-blue">
+                                        <User className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-gray-800">マイページ</h2>
+                                        <p className="text-sm text-gray-500">{user.email}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="p-8">
+                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                                    <Lock className="w-5 h-5 mr-2 text-brand-blue"/>
+                                    パスワード変更
+                                </h3>
+                                <form onSubmit={handleUpdate} className="space-y-4 max-w-md">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-600 mb-1">新しいパスワード</label>
+                                        <input 
+                                            type="password" 
+                                            className="w-full border border-gray-300 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-brand-blue"
+                                            placeholder="6文字以上"
+                                            value={newPass}
+                                            onChange={(e) => setNewPass(e.target.value)}
+                                            minLength={6}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-600 mb-1">新しいパスワード（確認）</label>
+                                        <input 
+                                            type="password" 
+                                            className="w-full border border-gray-300 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-brand-blue"
+                                            placeholder="もう一度入力"
+                                            value={confPass}
+                                            onChange={(e) => setConfPass(e.target.value)}
+                                            minLength={6}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="pt-2">
+                                        <button 
+                                            type="submit" 
+                                            disabled={isUpdating}
+                                            className="bg-brand-blue text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50"
+                                        >
+                                            {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Save className="w-4 h-4 mr-2"/>}
+                                            パスワードを更新する
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
         // ==========================================
-        // 4. School Console Component (計画策定機能 強化版)
+        // 4. School Console Component (自動計算・累計表示対応版)
         // ==========================================
         function SchoolConsole({ onBack, campus, allData, selectedYear, setSelectedYear, refreshData, showNotify, isAdmin }) {
             const [activeTab, setActiveTab] = useState('daily');
@@ -587,7 +764,7 @@
             const [reportDate, setReportDate] = useState(formatDateStr(new Date()));
             const [inputData, setInputData] = useState({ weather: 'sunny', flyers: 0, touch: 0, trial: 0, comment: '' });
             const [uploading, setUploading] = useState(false);
-            const [planData, setPlanData] = useState({});
+            const [planData, setPlanData] = useState({ initialStudents: 0 }); // 初期値を設定
             const [isSavingPlan, setIsSavingPlan] = useState(false);
             const [uploadTargetYear, setUploadTargetYear] = useState(selectedYear);
             const [isInputModalOpen, setIsInputModalOpen] = useState(false);
@@ -620,7 +797,8 @@
                         try {
                             const docRef = doc(db, "campus_plans", `${campus.id}_${selectedYear}`);
                             const docSnap = await getDoc(docRef);
-                            setPlanData(docSnap.exists() ? docSnap.data().plans : {});
+                            // 既存データがあればセット、なければ初期値
+                            setPlanData(docSnap.exists() ? { initialStudents: 0, ...docSnap.data().plans } : { initialStudents: 0 });
                         } catch (e) { console.error(e); }
                     };
                     fetchPlan();
@@ -674,10 +852,17 @@
                 } catch(e) { showNotify("削除エラー: " + e.message, 'error'); }
             };
 
-            // 計画データの更新ハンドラ (年間・月度共通)
+            // 計画データの更新ハンドラ
             const updatePlanData = (month, key, value, weekIndex = null) => {
                 setPlanData(prev => {
                     const newData = { ...prev };
+                    
+                    // 期首生徒数の更新
+                    if (month === 'initial' && key === 'students') {
+                        newData.initialStudents = Number(value);
+                        return newData;
+                    }
+
                     if (!newData[month]) newData[month] = {};
                     
                     if (weekIndex !== null) {
@@ -703,7 +888,23 @@
                     showNotify("計画を保存しました");
                 } catch (e) { showNotify("保存失敗: " + e.message, 'error'); } finally { setIsSavingPlan(false); }
             };
-            const handleCsvUpload = async (parsedData) => {
+            
+            // 年間計画の生徒数計算用ロジック
+            let currentStudentCount = planData.initialStudents || 0;
+
+            // 週次計画の合計計算用
+            const weeklyTotals = useMemo(() => {
+                if (!planData[selectedMonth]?.weeks) return { touchTry:0, flyers:0, trialApp:0, trialParticipation:0, enrollments:0 };
+                return planData[selectedMonth].weeks.reduce((acc, curr) => ({
+                    touchTry: acc.touchTry + (curr?.touchTry || 0),
+                    flyers: acc.flyers + (curr?.flyers || 0),
+                    trialApp: acc.trialApp + (curr?.trialApp || 0),
+                    trialParticipation: acc.trialParticipation + (curr?.trialParticipation || 0),
+                    enrollments: acc.enrollments + (curr?.enrollments || 0),
+                }), { touchTry:0, flyers:0, trialApp:0, trialParticipation:0, enrollments:0 });
+            }, [planData, selectedMonth]);
+            
+            const handleCsvUpload = async (parsedData) => { /* 前回のコードと同じ実装 */
                 if (!campus) return;
                 setUploading(true);
                 try {
@@ -877,11 +1078,16 @@
                                             <div className="overflow-x-auto">
                                                 <div className="mb-8">
                                                     <h4 className="font-bold text-gray-700 mb-2 border-l-4 border-brand-orange pl-2">1. 生徒・マーケティング計画</h4>
+                                                    <div className="flex items-center mb-4 bg-orange-50 p-3 rounded-lg border border-orange-100">
+                                                        <label className="text-sm font-bold text-gray-600 mr-2">期首生徒数:</label>
+                                                        <input type="number" value={planData.initialStudents || 0} onChange={(e)=>updatePlanData('initial', 'students', e.target.value)} className="bg-white border border-gray-300 rounded px-2 py-1 text-right w-24 font-bold text-brand-orange"/>
+                                                        <span className="text-xs text-gray-500 ml-2">※ここに入力した人数から、各月の入会・退会計画を加減して生徒数が自動計算されます。</span>
+                                                    </div>
                                                     <table className="w-full text-sm text-left border-collapse min-w-[1000px]">
                                                         <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
                                                             <tr>
                                                                 <th className="px-2 py-2">月度</th>
-                                                                <th className="px-2 py-2 w-24">生徒数</th>
+                                                                <th className="px-2 py-2 w-24 bg-gray-50">生徒数(自動)</th>
                                                                 <th className="px-2 py-2 w-24">退会数</th>
                                                                 <th className="px-2 py-2 w-24">T&T数</th>
                                                                 <th className="px-2 py-2 w-24">門配数</th>
@@ -894,10 +1100,17 @@
                                                             {MONTHS_LIST.map((m) => {
                                                                 const d = planData[m] || {};
                                                                 const rate = d.trials > 0 ? ((d.enrollments / d.trials) * 100).toFixed(1) : 0;
+                                                                // 生徒数自動計算 (期首 + 累積入会 - 累積退会)
+                                                                const enroll = Number(d.enrollments || 0);
+                                                                const withdraw = Number(d.withdrawals || 0);
+                                                                const monthEndStudents = currentStudentCount + enroll - withdraw;
+                                                                const displayStudents = currentStudentCount; 
+                                                                currentStudentCount = monthEndStudents; // 次月へ繰越
+
                                                                 return (
                                                                     <tr key={m} className="hover:bg-gray-50">
                                                                         <td className="px-2 py-2 font-bold text-gray-700">{m}</td>
-                                                                        <td className="px-1"><input type="number" value={d.students || 0} onChange={(e)=>updatePlanData(m, 'students', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
+                                                                        <td className="px-2 py-2 text-right font-bold text-brand-blue bg-gray-50">{monthEndStudents}</td>
                                                                         <td className="px-1"><input type="number" value={d.withdrawals || 0} onChange={(e)=>updatePlanData(m, 'withdrawals', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
                                                                         <td className="px-1"><input type="number" value={d.touchTry || 0} onChange={(e)=>updatePlanData(m, 'touchTry', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
                                                                         <td className="px-1"><input type="number" value={d.flyers || 0} onChange={(e)=>updatePlanData(m, 'flyers', e.target.value)} className="w-full border rounded px-1 py-1 text-right text-xs"/></td>
@@ -990,6 +1203,15 @@
                                                                     </tr>
                                                                 );
                                                             })}
+                                                            <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
+                                                                <td className="px-4 py-2 text-gray-700">合計</td>
+                                                                <td className="px-4 py-2 text-right">{weeklyTotals.touchTry}</td>
+                                                                <td className="px-4 py-2 text-right">{weeklyTotals.flyers}</td>
+                                                                <td className="px-4 py-2 text-right">{weeklyTotals.trialApp}</td>
+                                                                <td className="px-4 py-2 text-right">{weeklyTotals.trialParticipation}</td>
+                                                                <td className="px-4 py-2 text-right">{weeklyTotals.enrollments}</td>
+                                                                <td className="px-4 py-2 text-right">{weeklyTotals.trialParticipation > 0 ? ((weeklyTotals.enrollments / weeklyTotals.trialParticipation)*100).toFixed(1) : 0}%</td>
+                                                            </tr>
                                                         </tbody>
                                                     </table>
                                                 </div>
@@ -1418,24 +1640,157 @@
                                     </div>
                                 </div>
                             )}
+                            {activeTab === 'pl' && (
+                                <div className="space-y-8 animate-in fade-in">
+                                    <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                                        <StatCard title="売上" value={formatYen(currentViewData.revenue)} subValue={currentViewData.periodLabel} yoy={calcYoY(currentViewData.revenue, currentViewData.prevRevenue)} iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_1eb00716-6ac0-4be4-9b78-e8e9be44198e.svg" colorClass="text-brand-blue" />
+                                        <StatCard title="費用" value={formatYen(currentViewData.expense)} subValue={currentViewData.periodLabel} yoy={calcYoY(currentViewData.expense, currentViewData.prevExpense)} iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_72e22ba6-81fa-4b3e-abf5-23d886ad1dea.svg" colorClass="text-rose-500" />
+                                        <StatCard title="営業利益" value={formatYen(currentViewData.profit)} subValue={currentViewData.periodLabel} yoy={calcYoY(currentViewData.profit, currentViewData.prevProfit)} iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_33bb072f-fe8f-4a20-8e5a-0bc5f53bde3d.svg" colorClass="text-emerald-500" />
+                                        <StatCard title="アルバイト人件費率" value={`${currentViewData.revenue > 0 ? (currentViewData.partTime / currentViewData.revenue * 100).toFixed(1) : 0}%`} subValue="売上比" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_f93e0546-f8d7-464b-b008-882ad339027e.svg" colorClass="text-rose-500" />
+                                        <StatCard title="利益率" value={`${currentViewData.revenue ? ((currentViewData.profit/currentViewData.revenue)*100).toFixed(1) : 0}%`} subValue="売上対比" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_d71099f5-a933-4295-9991-75c16e130f81.svg" colorClass="text-brand-orange" />
+                                    </div>
+                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-[500px]">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className="text-lg font-bold text-gray-800 flex items-center"><DollarSign className="w-5 h-5 mr-2 text-brand-blue"/> 詳細収支推移 ({viewLabel})</h3>
+                                            <div className="flex items-center space-x-2">
+                                                <span className="text-xs text-gray-500">表示科目:</span>
+                                                <select value={plViewCategory} onChange={(e) => setPlViewCategory(e.target.value)} className="text-xs border border-gray-300 rounded px-2 py-1 outline-none">
+                                                    <option value="all">全体 (サマリー)</option>
+                                                    <option value="revenue">売上</option>
+                                                    <option value="ad">広告宣伝費</option>
+                                                    <option value="sales">販売費</option>
+                                                    <option value="labor">人件費</option>
+                                                    <option value="facility">設備費</option>
+                                                    <option value="admin">一般管理費</option>
+                                                    <option value="hq">本社費</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        {viewMode === 'monthly' ? (
+                                            <div className="grid grid-cols-2 gap-8 h-full">
+                                                 <div className="overflow-x-auto h-full">
+                                                    <table className="w-full text-sm">
+                                                        <thead className="bg-gray-50 text-gray-500 font-medium">
+                                                            <tr><th className="px-4 py-2 text-left">科目</th><th className="px-4 py-2 text-right">実績</th><th className="px-4 py-2 text-right">売上比</th><th className="px-4 py-2 text-right">前年</th><th className="px-4 py-2 text-right">前年比</th></tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-100">
+                                                            {monthlySummaryData.map((item) => {
+                                                                const isProfit = item.id === 'profit';
+                                                                const ratio = monthlySummaryData[0].value > 0 ? (item.value / monthlySummaryData[0].value * 100).toFixed(1) : '-';
+                                                                const yoy = item.prev > 0 ? ((item.value - item.prev) / item.prev * 100).toFixed(1) : '-';
+                                                                return (
+                                                                    <tr key={item.id} onClick={() => handlePLRowClick(item)} className={`hover:bg-blue-50 cursor-pointer ${selectedPLItem?.id === item.id ? 'bg-blue-50' : ''}`}>
+                                                                        <td className="px-4 py-3 font-bold text-gray-700 flex items-center"><div className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: item.fill}}></div>{item.name}</td>
+                                                                        <td className="px-4 py-3 text-right">{formatYen(item.value)}</td>
+                                                                        <td className="px-4 py-3 text-right text-gray-500">{ratio}%</td>
+                                                                        <td className="px-4 py-3 text-right text-gray-400">{formatYen(item.prev)}</td>
+                                                                        <td className={`px-4 py-3 text-right font-bold ${yoy > 0 ? (isProfit ? 'text-emerald-600' : 'text-rose-600') : (isProfit ? 'text-rose-600' : 'text-emerald-600')}`}>{yoy !== '-' ? yoy + '%' : '-'}</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                <div className="h-full flex flex-col">
+                                                     {selectedPLItem ? (
+                                                         <>
+                                                            <h3 className="text-lg font-bold text-gray-800 mb-2">{selectedPLItem.name} 詳細</h3>
+                                                            <div className="flex-1 overflow-y-auto">
+                                                                {monthDataForPL.detailItems[selectedPLItem.id]?.map((d, i) => (
+                                                                    <div key={i} className="flex justify-between p-2 border-b border-gray-50 text-sm"><span>{d.name}</span><span>{formatYen(d.value)}</span></div>
+                                                                ))}
+                                                            </div>
+                                                         </>
+                                                     ) : <div className="flex items-center justify-center h-full text-gray-400">科目を選択してください</div>}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <ResponsiveContainer width="100%" height="90%">
+                                                {plViewCategory === 'all' ? (
+                                                    <ComposedChart data={displayData} stackOffset="sign" onMouseMove={handleChartHover} onMouseLeave={handleChartLeave}>
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                        <XAxis dataKey="name" interval={0} />
+                                                        <YAxis />
+                                                        <Tooltip formatter={(value)=>formatYen(value)} />
+                                                        <Legend />
+                                                        <Bar dataKey="ad" name="広告宣伝費" stackId="exp" fill={COLORS.ad} onClick={(data, i) => onBarClick(data, i, null, 'ad')} cursor="pointer"/>
+                                                        <Bar dataKey="sales" name="販売費" stackId="exp" fill={COLORS.sales} onClick={(data, i) => onBarClick(data, i, null, 'sales')} cursor="pointer"/>
+                                                        <Bar dataKey="labor" name="人件費" stackId="exp" fill={COLORS.labor} onClick={(data, i) => onBarClick(data, i, null, 'labor')} cursor="pointer"/>
+                                                        <Bar dataKey="facility" name="設備費" stackId="exp" fill={COLORS.facility} onClick={(data, i) => onBarClick(data, i, null, 'facility')} cursor="pointer"/>
+                                                        <Bar dataKey="admin" name="一般管理費" stackId="exp" fill={COLORS.admin} onClick={(data, i) => onBarClick(data, i, null, 'admin')} cursor="pointer"/>
+                                                        <Bar dataKey="hq" name="本社費" stackId="exp" fill={COLORS.hq} onClick={(data, i) => onBarClick(data, i, null, 'hq')} cursor="pointer"/>
+                                                        <Bar dataKey="other" name="その他" stackId="exp" fill={COLORS.other} onClick={(data, i) => onBarClick(data, i, null, 'other')} cursor="pointer"/>
+                                                        <Line type="monotone" dataKey="revenue" name="売上" stroke={COLORS.revenue} strokeWidth={3} />
+                                                        <Line type="monotone" dataKey="profit" name="営業利益" stroke={COLORS.profit} strokeWidth={2} strokeDasharray="5 5" />
+                                                    </ComposedChart>
+                                                ) : (
+                                                    <BarChart data={plChartData.data}>
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                        <XAxis dataKey="name" interval={0} />
+                                                        <YAxis />
+                                                        <Tooltip formatter={(value)=>formatYen(value)} />
+                                                        <Legend />
+                                                        {plChartData.keys.map((key, index) => (
+                                                            <Bar key={key} dataKey={key} stackId="a" fill={SUB_COLORS[index % SUB_COLORS.length]} />
+                                                        ))}
+                                                    </BarChart>
+                                                )}
+                                            </ResponsiveContainer>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {activeTab === 'students' && (
+                                <div className="space-y-8 animate-in fade-in">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <StatCard 
+                                            title="期間内増加" 
+                                            value={`${totals.newEnrollments + totals.transferIns}名`} 
+                                            subValue="入会+転入" 
+                                            iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_d71099f5-a933-4295-9991-75c16e130f81.svg" 
+                                            colorClass="text-emerald-500" 
+                                            details={[{label:'入会', value:totals.newEnrollments}, {label:'転入', value:totals.transferIns}]} 
+                                        />
+                                        <StatCard 
+                                            title="期間内減少" 
+                                            value={`${totals.withdrawals + Math.abs(totals.transfers) + Math.abs(totals.graduates)}名`} 
+                                            subValue="退会+転校+卒業" 
+                                            iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_c22e686d-38dc-4fb6-bcf8-dc71adcf9d99.svg" 
+                                            colorClass="text-rose-500" 
+                                            details={[{label:'退会', value:totals.withdrawals}, {label:'転校', value:Math.abs(totals.transfers)}, {label:'卒業', value:Math.abs(totals.graduates)}]} 
+                                        />
+                                        <StatCard 
+                                            title="在籍生徒数" 
+                                            value={`${currentTotalStudents}名`} 
+                                            subValue={viewMode==='annual'?'年度末':'月末'} 
+                                            iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_cd586213-916c-4b50-b0c3-deb64e7fdd8a.svg" 
+                                            colorClass="text-brand-blue" 
+                                        />
+                                    </div>
+                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-[500px]">
+                                        <h3 className="text-lg font-bold text-gray-800 mb-6">生徒数増減詳細</h3>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={displayData} stackOffset="sign">
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                <XAxis dataKey="name" interval={0} tick={viewMode === 'weekly' ? WeeklyAxisTick : undefined} />
+                                                <YAxis />
+                                                <Tooltip />
+                                                <Legend />
+                                                <ReferenceLine y={0} stroke="#000" />
+                                                <Bar dataKey="newEnrollments" name="入会" fill="#10b981" stackId="stack" />
+                                                <Bar dataKey="transferIns" name="転入" fill="#06B6D4" stackId="stack" />
+                                                <Bar dataKey="withdrawals_neg" name="退会" fill="#EF4444" stackId="stack" />
+                                                <Bar dataKey="graduates_neg" name="卒業" fill="#A855F7" stackId="stack" />
+                                                <Bar dataKey="transfers_neg" name="転校" fill="#F97316" stackId="stack" />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                            )}
 
                             {activeTab === 'marketing' && (
                                 <div className="space-y-8 animate-in fade-in">
-                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                                        <StatCard title="門配数" value={Number(marketingTotals.flyers).toLocaleString()} subValue="枚" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_c2a71fb3-8a17-487f-9a43-8bbaf4fd5dbc.svg" colorClass="text-brand-blue" />
-                                        <StatCard title="T&T数" value={`${marketingTotals.touchTry}名`} subValue="回" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_c70b5f6d-6213-489c-bd5e-e3f6ce379f23.svg" colorClass="text-emerald-500" />
-                                        <StatCard
-                                            title="体験・イベント申込"
-                                            value={`${marketingTotals.totalApps}名`}
-                                            subValue={`体験:${marketingTotals.trialApp} / イベ:${marketingTotals.eventApp}`}
-                                            iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-1523x1551_v-fms_webp_aac06d68-945a-47cb-95d6-19c1f545a656.png"
-                                            colorClass="text-brand-blue"
-                                        />
-                                        <StatCard title="体験会実施" value={`${marketingTotals.trialActual}名`} subValue="回" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_8a59c5ac-e140-4c01-a48b-c32bbeec5af0.svg" colorClass="text-brand-orange" />
-                                        <StatCard title="入会数" value={`${marketingTotals.newEnrollments}名`} subValue="人" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_963a0f4f-287f-4143-8c66-6c301ca67ae8.svg" colorClass="text-emerald-600" />
-                                        <StatCard title="入会率" value={`${marketingTotals.rate}%`} subValue="入会 ÷ 実施" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_d71099f5-a933-4295-9991-75c16e130f81.svg" colorClass="text-rose-500" />
-                                    </div>
-
                                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-[500px]">
                                         <h3 className="text-lg font-bold text-gray-800 mb-6">集客ファネル推移 ({viewLabel})</h3>
                                         <ResponsiveContainer width="100%" height="100%">
@@ -1473,13 +1828,9 @@
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {campusList.map((c, index)=>(
-                                            <div key={c.id} className="p-4 border border-gray-200 rounded-lg bg-gray-50 flex justify-between items-center group hover:shadow-md transition-shadow">
+                                            <div key={c.id} className="p-4 border border-gray-200 rounded-lg bg-gray-50 flex justify-between items-center">
                                                 <div><div className="font-bold text-gray-700">{c.name}</div><div className="text-xs text-gray-400">{c.id}</div></div>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="flex gap-1 mr-2 opacity-50 group-hover:opacity-100 transition-opacity">
-                                                        <button onClick={() => handleReorder(index, -1)} disabled={index === 0 || isReordering} className="p-1 hover:text-brand-blue disabled:opacity-20"><ArrowUp className="w-4 h-4"/></button>
-                                                        <button onClick={() => handleReorder(index, 1)} disabled={index === campusList.length - 1 || isReordering} className="p-1 hover:text-brand-blue disabled:opacity-20"><ArrowDown className="w-4 h-4"/></button>
-                                                    </div>
+                                                <div className="flex gap-2">
                                                     <button onClick={() => openEditCampus(c)} className="text-gray-400 hover:text-brand-blue p-2"><Edit2 className="w-4 h-4"/></button>
                                                     <button onClick={() => handleDeleteCampus(c.id, c.name)} className="text-gray-400 hover:text-red-500 p-2"><Trash2 className="w-4 h-4"/></button>
                                                 </div>
@@ -1503,7 +1854,6 @@
             const [consoleMode, setConsoleMode] = useState('select'); 
             const [selectedCampusId, setSelectedCampusId] = useState(null);
             const [campusList, setCampusList] = useState([]);
-            // 現在日付から初期年度を自動判定 (1-3月なら前年が年度)
             const [selectedYear, setSelectedYear] = useState(() => { const d = new Date(); return d.getMonth() < 3 ? d.getFullYear() - 1 : d.getFullYear(); });
             const [notification, setNotification] = useState(null);
             const [isSyncing, setIsSyncing] = useState(false);
