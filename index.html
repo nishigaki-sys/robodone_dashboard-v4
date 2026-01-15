@@ -52,59 +52,21 @@
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
 
-        /* 印刷用スタイル (完全版) */
+        /* 印刷用スタイル */
         @media print {
-            /* 基本設定と縮小スケール */
-            body { 
-                background-color: white !important;
-                -webkit-print-color-adjust: exact; 
-                print-color-adjust: exact; 
-                margin: 0 !important; 
-                padding: 0 !important;
-                
-                /* A4 1枚に収めるための縮小設定 (0.75倍) */
-                transform: scale(0.75); 
-                transform-origin: top left; 
-                width: 133.3%; /* 100% ÷ 0.75 ≒ 133.3% で横幅を補正 */
-                height: auto !important;
-                overflow: visible !important;
-            }
-
-            /* 不要な要素を非表示 */
+            body { background-color: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
             .no-print { display: none !important; }
-            
-            /* 印刷専用要素を表示 */
             .print-only { display: block !important; }
-            
-            /* 改ページ設定 */
             .page-break { page-break-before: always; }
-            
-            /* 用紙設定 (余白0にしてbodyのscaleで制御) */
-            @page { size: A4; margin: 0; }
-
-            /* レポートコンテナのスタイル */
-            .report-container { 
-                width: 100%; 
-                margin: 0 auto; 
-            }
-
-            /* テーブルスタイル */
+            @page { size: A4; margin: 5mm; }
+            .report-container { width: 100%; max-width: 200mm; margin: 0 auto; }
             .report-table { width: 100%; border-collapse: collapse; font-size: 9px; }
             .report-table th, .report-table td { border: 1px solid #333; padding: 3px; text-align: center; }
             .report-table th { background-color: #f0f0f0; font-weight: bold; }
             .report-section-title { font-size: 11px; font-weight: bold; border-left: 4px solid #333; padding-left: 5px; margin: 10px 0 5px 0; }
-
-            /* 重要: 2ページ目発生の原因となる固定高さを解除 */
-            .report-preview-wrapper {
-                width: 100% !important;
-                min-height: auto !important;
-                height: auto !important;
-                margin: 0 !important;
-                padding: 10mm !important; /* 適度な余白を内側に持たせる */
-                box-shadow: none !important;
-                background: white !important;
-            }
         }
+        .print-only { display: none; }
+        .report-preview-wrapper { width: 210mm; min-height: 297mm; background: white; margin: 0 auto; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
     </style>
 </head>
 <body>
