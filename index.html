@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Robot School Dashboard V3</title>
+    <title>Robot School Dashboard V4.1</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -59,7 +59,7 @@
             .print-only { display: block !important; }
             .page-break { page-break-before: always; }
             @page { size: A4; margin: 5mm; }
-            .report-container { width: 100%; max-width: 210mm; margin: 0 auto; }
+            .report-container { width: 100%; max-width: 200mm; margin: 0 auto; }
             .report-table { width: 100%; border-collapse: collapse; font-size: 9px; }
             .report-table th, .report-table td { border: 1px solid #333; padding: 3px; text-align: center; }
             .report-table th { background-color: #f0f0f0; font-weight: bold; }
@@ -253,12 +253,21 @@
 
             return MONTHS_LIST.map((monthName, mIdx) => {
                 const { weeks, daysInMonth, year: tYear, month: tMonth } = getWeeksStruct(targetYear, mIdx);
+                const tYearPrev = tYear - 1;
+                
                 const mFinancials = financials.filter(fin => {
                     if (!isTargetCampus(fin)) return false;
                     const dateStr = typeof fin.date === 'string' ? fin.date : formatDateStr(parseDate(fin.date));
                     const [fY, fM] = dateStr.split('-').map(Number);
                     return fY === tYear && fM === (tMonth + 1);
                 });
+                const mFinancialsPrev = financials.filter(fin => {
+                    if (!isTargetCampus(fin)) return false;
+                    const dateStr = typeof fin.date === 'string' ? fin.date : formatDateStr(parseDate(fin.date));
+                    const [fY, fM] = dateStr.split('-').map(Number);
+                    return fY === tYearPrev && fM === (tMonth + 1);
+                });
+                
                 const aggFinancials = (fins) => {
                     const agg = { revenue: 0, ad: 0, sales: 0, labor: 0, facility: 0, admin: 0, hq: 0, other: 0, expenseTotal: 0, partTime: 0 };
                     const details = {};
@@ -275,6 +284,18 @@
                     return { ...agg, details };
                 };
                 const currentFin = aggFinancials(mFinancials);
+                const prevFin = aggFinancials(mFinancialsPrev);
+
+                const filterPrevMonth = (list, typeFilter=null, dateKey='date') => list.filter(item => {
+                    if (!isTargetCampus(item)) return false;
+                    let d = parseDate(item[dateKey]);
+                    if (!d) return false;
+                    const iYear = d.getFullYear();
+                    const iMonth = d.getMonth() + 1;
+                    return iYear === tYearPrev && iMonth === (tMonth + 1) && (!typeFilter || item.type?.includes(typeFilter));
+                }).length;
+                const prevNewEnrollments = filterPrevMonth(enrollments);
+                const prevWithdrawals = filterPrevMonth(statusChanges, "退会");
 
                 const dailyData = Array.from({ length: daysInMonth }, (_, i) => {
                     const day = i + 1;
@@ -307,6 +328,7 @@
                     const dWithdraw = filterDay(statusChanges, "退会");
                     const dGrad = filterDay(statusChanges, "卒業");
                     const dTransferOut = filterDay(statusChanges, "転校");
+                    const dRecess = filterDay(statusChanges, "休会");
                     
                     return {
                         name: `${day}日`, date: dateStr, dayOfWeek: dayOfWeekStr,
@@ -315,7 +337,7 @@
                         trialScheduled: dTrialScheduled, eventScheduled: dEventScheduled, 
                         trialActual: dTrialActual, weather: weather,
                         transferIns: dTransferIn, withdrawals: dWithdraw, 
-                        graduates_neg: -dGrad, transfers_neg: -dTransferOut, withdrawals_neg: -dWithdraw
+                        graduates_neg: -dGrad, transfers_neg: -dTransferOut, withdrawals_neg: -dWithdraw, recesses_neg: -dRecess
                     };
                 });
 
@@ -332,6 +354,7 @@
                     };
                 });
 
+                // 在籍生徒数の計算
                 const netChange = (sumDaily('newEnrollments') + sumDaily('transferIns')) - (sumDaily('withdrawals') + Math.abs(sumDaily('graduates_neg')) + Math.abs(sumDaily('transfers_neg')));
                 currentStudents += netChange;
 
@@ -344,8 +367,9 @@
                     students: currentStudents,
                     ...currentFin, expense: currentFin.expenseTotal, profit: currentFin.revenue - currentFin.expenseTotal, detailItems: currentFin.details,
                     transferIns: sumDaily('transferIns'), withdrawals: sumDaily('withdrawals'),
-                    withdrawals_neg: sumDaily('withdrawals_neg'), graduates_neg: sumDaily('graduates_neg'), transfers_neg: sumDaily('transfers_neg'),
-                    prevRevenue: 0, prevExpense: 0, prevProfit: 0, prevNewEnrollments: 0
+                    withdrawals_neg: sumDaily('withdrawals_neg'), graduates_neg: sumDaily('graduates_neg'), transfers_neg: sumDaily('transfers_neg'), recesses_neg: sumDaily('recesses_neg'),
+                    prevRevenue: prevFin.revenue, prevExpense: prevFin.expenseTotal, prevProfit: prevFin.revenue - prevFin.expenseTotal, 
+                    prevNewEnrollments, prevWithdrawals
                 };
             });
         };
@@ -500,28 +524,29 @@
             );
         };
         
-        // --- 帳票出力コンポーネント (New: 予実対比) ---
+        // --- 帳票出力コンポーネント (予実対比・KPIカード) ---
         const ReportView = ({ year, month, campus, dailyData, weeklyData, planData, summaryData }) => {
             const weatherMap = { sunny: '晴', cloudy: '曇', rainy: '雨', snowy: '雪', closed: '-' };
-            // 週次計画データの取得
             const weeklyPlans = planData[month]?.weeks || [];
-
-            // 差異計算ヘルパー
             const getDiff = (plan, actual) => (actual || 0) - (plan || 0);
 
-            // 計画データ取得（サマリー用）
+            // 計画データ取得
             const monthlyPlan = planData[month] || {};
             // 実績データ取得
             const actualEnrollments = summaryData.newEnrollments;
             const actualWithdrawals = summaryData.withdrawals;
             const actualStudents = summaryData.students;
 
-            // 計画の生徒数計算 (ここでは簡易的に月次計画の値を使用)
-            let plannedStudents = Number(monthlyPlan.students) || 0; 
+            // 計画の生徒数計算 (ここでは簡易的に年間計画の自動計算結果または手入力値を参照する想定だが、月次計画オブジェクトから取得)
+            // ※SchoolConsoleのupdatePlanDataで計算された結果がplanData[month]に入っている前提
+            // もしなければ0
+            let plannedStudents = 0; 
+            // 実際はSchoolConsole側で計算・保存された値を使うのが望ましいが、ここでは簡易計算
+            // 前月の生徒数などはReportView単体では不明なため、SchoolConsoleから渡されたplanDataを信頼する
 
             // KPIカード用データ
             const kpiData = [
-                { label: "在籍生徒数", value: `${actualStudents}名`, plan: `${plannedStudents}名`, diff: actualStudents - plannedStudents },
+                { label: "在籍生徒数", value: `${actualStudents}名`, plan: "-", diff: "-" }, // 計画生徒数は別途計算が必要
                 { label: "入会数", value: `${actualEnrollments}名`, plan: `${monthlyPlan.enrollments || 0}名`, diff: actualEnrollments - (monthlyPlan.enrollments || 0) },
                 { label: "退会数", value: `${actualWithdrawals}名`, plan: `${monthlyPlan.withdrawals || 0}名`, diff: actualWithdrawals - (monthlyPlan.withdrawals || 0) },
             ];
@@ -546,7 +571,7 @@
                                 <div className="text-xl font-bold mb-1">{kpi.value}</div>
                                 <div className="text-xs flex gap-2 text-gray-600">
                                     <span>計画: {kpi.plan}</span>
-                                    <span className={kpi.diff < 0 ? 'text-red-600' : 'text-blue-600'}>差異: {kpi.diff > 0 ? '+' : ''}{kpi.diff}</span>
+                                    <span className={typeof kpi.diff === 'number' && kpi.diff < 0 ? 'text-red-600' : 'text-blue-600'}>差異: {typeof kpi.diff === 'number' && kpi.diff > 0 ? '+' : ''}{kpi.diff}</span>
                                 </div>
                             </div>
                         ))}
@@ -594,15 +619,8 @@
                                 <div className="report-section-title">2. 集客活動 (週次)</div>
                                 <table className="report-table">
                                     <thead>
-                                        <tr className="bg-gray-100">
-                                            <th rowSpan="2">期間</th>
-                                            <th colSpan="3">T&T</th>
-                                            <th colSpan="3">門配</th>
-                                        </tr>
-                                        <tr className="bg-gray-50">
-                                            <th>計画</th><th>実績</th><th>差異</th>
-                                            <th>計画</th><th>実績</th><th>差異</th>
-                                        </tr>
+                                        <tr className="bg-gray-100"><th rowSpan="2">期間</th><th colSpan="3">T&T</th><th colSpan="3">門配</th></tr>
+                                        <tr className="bg-gray-50"><th>計画</th><th>実績</th><th>差異</th><th>計画</th><th>実績</th><th>差異</th></tr>
                                     </thead>
                                     <tbody>
                                         {weeklyData.map((w, i) => {
@@ -610,22 +628,15 @@
                                             return (
                                                 <tr key={i}>
                                                     <td>{w.label}</td>
-                                                    <td>{plan.touchTry || 0}</td><td>{w.touchTry}</td>
-                                                    <td className={getDiff(plan.touchTry, w.touchTry)<0 ? 'text-red-600':''}>{getDiff(plan.touchTry, w.touchTry)}</td>
-                                                    <td>{plan.flyers || 0}</td><td>{w.flyers}</td>
-                                                    <td className={getDiff(plan.flyers, w.flyers)<0 ? 'text-red-600':''}>{getDiff(plan.flyers, w.flyers)}</td>
+                                                    <td>{plan.touchTry || 0}</td><td>{w.touchTry}</td><td className={getDiff(plan.touchTry, w.touchTry)<0 ? 'text-red-600':''}>{getDiff(plan.touchTry, w.touchTry)}</td>
+                                                    <td>{plan.flyers || 0}</td><td>{w.flyers}</td><td className={getDiff(plan.flyers, w.flyers)<0 ? 'text-red-600':''}>{getDiff(plan.flyers, w.flyers)}</td>
                                                 </tr>
                                             );
                                         })}
-                                        {/* 月度計 */}
                                         <tr className="font-bold bg-gray-100">
                                             <td>月度計</td>
-                                            <td>{weeklyPlans.reduce((s,p)=>s+(p.touchTry||0),0)}</td>
-                                            <td>{weeklyData.reduce((s,w)=>s+w.touchTry,0)}</td>
-                                            <td>{weeklyData.reduce((s,w)=>s+w.touchTry,0) - weeklyPlans.reduce((s,p)=>s+(p.touchTry||0),0)}</td>
-                                            <td>{weeklyPlans.reduce((s,p)=>s+(p.flyers||0),0)}</td>
-                                            <td>{weeklyData.reduce((s,w)=>s+w.flyers,0)}</td>
-                                            <td>{weeklyData.reduce((s,w)=>s+w.flyers,0) - weeklyPlans.reduce((s,p)=>s+(p.flyers||0),0)}</td>
+                                            <td>{weeklyPlans.reduce((s,p)=>s+(p.touchTry||0),0)}</td><td>{weeklyData.reduce((s,w)=>s+w.touchTry,0)}</td><td>{weeklyData.reduce((s,w)=>s+w.touchTry,0) - weeklyPlans.reduce((s,p)=>s+(p.touchTry||0),0)}</td>
+                                            <td>{weeklyPlans.reduce((s,p)=>s+(p.flyers||0),0)}</td><td>{weeklyData.reduce((s,w)=>s+w.flyers,0)}</td><td>{weeklyData.reduce((s,w)=>s+w.flyers,0) - weeklyPlans.reduce((s,p)=>s+(p.flyers||0),0)}</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -636,17 +647,8 @@
                                 <div className="report-section-title">3. 体験・入会 (週次)</div>
                                 <table className="report-table">
                                     <thead>
-                                        <tr className="bg-gray-100">
-                                            <th rowSpan="2">期間</th>
-                                            <th colSpan="3">体験申込</th>
-                                            <th colSpan="3">体験参加</th>
-                                            <th colSpan="3">入会</th>
-                                        </tr>
-                                        <tr className="bg-gray-50">
-                                            <th>計画</th><th>実績</th><th>差異</th>
-                                            <th>計画</th><th>実績</th><th>差異</th>
-                                            <th>計画</th><th>実績</th><th>差異</th>
-                                        </tr>
+                                        <tr className="bg-gray-100"><th rowSpan="2">期間</th><th colSpan="3">体験申込</th><th colSpan="3">体験参加</th><th colSpan="3">入会</th></tr>
+                                        <tr className="bg-gray-50"><th>計画</th><th>実績</th><th>差異</th><th>計画</th><th>実績</th><th>差異</th><th>計画</th><th>実績</th><th>差異</th></tr>
                                     </thead>
                                     <tbody>
                                         {weeklyData.map((w, i) => {
@@ -654,27 +656,17 @@
                                             return (
                                                 <tr key={i}>
                                                     <td>{w.label}</td>
-                                                    <td>{plan.trialApp || 0}</td><td>{w.trialApp}</td>
-                                                    <td className={getDiff(plan.trialApp, w.trialApp)<0 ? 'text-red-600':''}>{getDiff(plan.trialApp, w.trialApp)}</td>
-                                                    <td>{plan.trialParticipation || 0}</td><td>{w.trialActual}</td>
-                                                    <td className={getDiff(plan.trialParticipation, w.trialActual)<0 ? 'text-red-600':''}>{getDiff(plan.trialParticipation, w.trialActual)}</td>
-                                                    <td>{plan.enrollments || 0}</td><td>{w.newEnrollments}</td>
-                                                    <td className={getDiff(plan.enrollments, w.newEnrollments)<0 ? 'text-red-600':''}>{getDiff(plan.enrollments, w.newEnrollments)}</td>
+                                                    <td>{plan.trialApp || 0}</td><td>{w.trialApp}</td><td className={getDiff(plan.trialApp, w.trialApp)<0 ? 'text-red-600':''}>{getDiff(plan.trialApp, w.trialApp)}</td>
+                                                    <td>{plan.trialParticipation || 0}</td><td>{w.trialActual}</td><td className={getDiff(plan.trialParticipation, w.trialActual)<0 ? 'text-red-600':''}>{getDiff(plan.trialParticipation, w.trialActual)}</td>
+                                                    <td>{plan.enrollments || 0}</td><td>{w.newEnrollments}</td><td className={getDiff(plan.enrollments, w.newEnrollments)<0 ? 'text-red-600':''}>{getDiff(plan.enrollments, w.newEnrollments)}</td>
                                                 </tr>
                                             );
                                         })}
-                                        {/* 月度計 */}
                                         <tr className="font-bold bg-gray-100">
                                             <td>月度計</td>
-                                            <td>{weeklyPlans.reduce((s,p)=>s+(p.trialApp||0),0)}</td>
-                                            <td>{weeklyData.reduce((s,w)=>s+w.trialApp,0)}</td>
-                                            <td>{weeklyData.reduce((s,w)=>s+w.trialApp,0) - weeklyPlans.reduce((s,p)=>s+(p.trialApp||0),0)}</td>
-                                            <td>{weeklyPlans.reduce((s,p)=>s+(p.trialParticipation||0),0)}</td>
-                                            <td>{weeklyData.reduce((s,w)=>s+w.trialActual,0)}</td>
-                                            <td>{weeklyData.reduce((s,w)=>s+w.trialActual,0) - weeklyPlans.reduce((s,p)=>s+(p.trialParticipation||0),0)}</td>
-                                            <td>{weeklyPlans.reduce((s,p)=>s+(p.enrollments||0),0)}</td>
-                                            <td>{weeklyData.reduce((s,w)=>s+w.newEnrollments,0)}</td>
-                                            <td>{weeklyData.reduce((s,w)=>s+w.newEnrollments,0) - weeklyPlans.reduce((s,p)=>s+(p.enrollments||0),0)}</td>
+                                            <td>{weeklyPlans.reduce((s,p)=>s+(p.trialApp||0),0)}</td><td>{weeklyData.reduce((s,w)=>s+w.trialApp,0)}</td><td>{weeklyData.reduce((s,w)=>s+w.trialApp,0) - weeklyPlans.reduce((s,p)=>s+(p.trialApp||0),0)}</td>
+                                            <td>{weeklyPlans.reduce((s,p)=>s+(p.trialParticipation||0),0)}</td><td>{weeklyData.reduce((s,w)=>s+w.trialActual,0)}</td><td>{weeklyData.reduce((s,w)=>s+w.trialActual,0) - weeklyPlans.reduce((s,p)=>s+(p.trialParticipation||0),0)}</td>
+                                            <td>{weeklyPlans.reduce((s,p)=>s+(p.enrollments||0),0)}</td><td>{weeklyData.reduce((s,w)=>s+w.newEnrollments,0)}</td><td>{weeklyData.reduce((s,w)=>s+w.newEnrollments,0) - weeklyPlans.reduce((s,p)=>s+(p.enrollments||0),0)}</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -684,8 +676,366 @@
                 </div>
             );
         };
+
+        // --- ログインコンポーネント (復元) ---
+        const Login = () => {
+            const [email, setEmail] = useState("");
+            const [password, setPassword] = useState("");
+            const [error, setError] = useState("");
+            const [loading, setLoading] = useState(false);
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError("");
+                try {
+                    const auth = getAuth();
+                    await signInWithEmailAndPassword(auth, email, password);
+                } catch (err) {
+                    setError("ログインに失敗しました。メールアドレスとパスワードを確認してください。");
+                    console.error(err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+                    <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
+                        <div className="text-center mb-8">
+                            <div className="w-16 h-16 bg-brand-blue rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand-blue/20">
+                                <LayoutDashboard className="w-8 h-8 text-white" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-gray-800">Robot School Dashboard</h2>
+                            <p className="text-gray-500 mt-2">ログインしてダッシュボードにアクセス</p>
+                        </div>
+                        {error && (
+                            <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-start">
+                                <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+                                <span>{error}</span>
+                            </div>
+                        )}
+                        <form onSubmit={handleLogin} className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">メールアドレス</label>
+                                <input 
+                                    type="email" 
+                                    required 
+                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none transition-all"
+                                    placeholder="your@email.com"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">パスワード</label>
+                                <input 
+                                    type="password" 
+                                    required 
+                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none transition-all"
+                                    placeholder="••••••••"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                />
+                            </div>
+                            <button 
+                                type="submit" 
+                                disabled={loading}
+                                className="w-full bg-brand-blue text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                            >
+                                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><LogIn className="w-5 h-5 mr-2" /> ログイン</>}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- マイページコンポーネント (復元) ---
+        const MyPage = ({ user, onBack, showNotify }) => {
+            const [newPass, setNewPass] = useState("");
+            const [confPass, setConfPass] = useState("");
+            const [isUpdating, setIsUpdating] = useState(false);
+
+            const handleUpdate = async (e) => {
+                e.preventDefault();
+                if (newPass !== confPass) {
+                    showNotify("パスワードが一致しません", "error");
+                    return;
+                }
+                if (newPass.length < 6) {
+                    showNotify("パスワードは6文字以上で設定してください", "error");
+                    return;
+                }
+                
+                setIsUpdating(true);
+                try {
+                    await updatePassword(user, newPass);
+                    showNotify("パスワードを更新しました");
+                    setNewPass("");
+                    setConfPass("");
+                } catch (error) {
+                    console.error(error);
+                    if (error.code === 'auth/requires-recent-login') {
+                        showNotify("セキュリティのため、再ログイン後に再度お試しください", "error");
+                    } else {
+                        showNotify("更新に失敗しました: " + error.message, "error");
+                    }
+                } finally {
+                    setIsUpdating(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-brand-slate p-6 fade-in">
+                    <div className="max-w-2xl mx-auto">
+                        <button onClick={onBack} className="flex items-center text-gray-500 hover:text-gray-700 mb-6 font-bold">
+                            <ArrowUp className="w-4 h-4 mr-1 -rotate-90" /> 戻る
+                        </button>
+                        
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="p-6 border-b border-gray-100 bg-gray-50">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border border-gray-200 text-brand-blue">
+                                        <User className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-gray-800">マイページ</h2>
+                                        <p className="text-sm text-gray-500">{user.email}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="p-8">
+                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                                    <Lock className="w-5 h-5 mr-2 text-brand-blue"/>
+                                    パスワード変更
+                                </h3>
+                                <form onSubmit={handleUpdate} className="space-y-4 max-w-md">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-600 mb-1">新しいパスワード</label>
+                                        <input 
+                                            type="password" 
+                                            className="w-full border border-gray-300 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-brand-blue"
+                                            placeholder="6文字以上"
+                                            value={newPass}
+                                            onChange={(e) => setNewPass(e.target.value)}
+                                            minLength={6}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-600 mb-1">新しいパスワード（確認）</label>
+                                        <input 
+                                            type="password" 
+                                            className="w-full border border-gray-300 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-brand-blue"
+                                            placeholder="もう一度入力"
+                                            value={confPass}
+                                            onChange={(e) => setConfPass(e.target.value)}
+                                            minLength={6}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="pt-2">
+                                        <button 
+                                            type="submit" 
+                                            disabled={isUpdating}
+                                            className="bg-brand-blue text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50"
+                                        >
+                                            {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Save className="w-4 h-4 mr-2"/>}
+                                            パスワードを更新する
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
         // ==========================================
-        // 4. School Console Component (帳票レイアウト修正・KPI連携版)
+        // ログインコンポーネント
+        // ==========================================
+        const Login = () => {
+            const [email, setEmail] = useState("");
+            const [password, setPassword] = useState("");
+            const [error, setError] = useState("");
+            const [loading, setLoading] = useState(false);
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError("");
+                try {
+                    const auth = getAuth();
+                    await signInWithEmailAndPassword(auth, email, password);
+                } catch (err) {
+                    setError("ログインに失敗しました。メールアドレスとパスワードを確認してください。");
+                    console.error(err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+                    <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
+                        <div className="text-center mb-8">
+                            <div className="w-16 h-16 bg-brand-blue rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand-blue/20">
+                                <LayoutDashboard className="w-8 h-8 text-white" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-gray-800">Robot School Dashboard</h2>
+                            <p className="text-gray-500 mt-2">ログインしてダッシュボードにアクセス</p>
+                        </div>
+                        {error && (
+                            <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-start">
+                                <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+                                <span>{error}</span>
+                            </div>
+                        )}
+                        <form onSubmit={handleLogin} className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">メールアドレス</label>
+                                <input 
+                                    type="email" 
+                                    required 
+                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none transition-all"
+                                    placeholder="your@email.com"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">パスワード</label>
+                                <input 
+                                    type="password" 
+                                    required 
+                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none transition-all"
+                                    placeholder="••••••••"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                />
+                            </div>
+                            <button 
+                                type="submit" 
+                                disabled={loading}
+                                className="w-full bg-brand-blue text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                            >
+                                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><LogIn className="w-5 h-5 mr-2" /> ログイン</>}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // マイページコンポーネント
+        // ==========================================
+        const MyPage = ({ user, onBack, showNotify }) => {
+            const [newPass, setNewPass] = useState("");
+            const [confPass, setConfPass] = useState("");
+            const [isUpdating, setIsUpdating] = useState(false);
+
+            const handleUpdate = async (e) => {
+                e.preventDefault();
+                if (newPass !== confPass) {
+                    showNotify("パスワードが一致しません", "error");
+                    return;
+                }
+                if (newPass.length < 6) {
+                    showNotify("パスワードは6文字以上で設定してください", "error");
+                    return;
+                }
+                
+                setIsUpdating(true);
+                try {
+                    await updatePassword(user, newPass);
+                    showNotify("パスワードを更新しました");
+                    setNewPass("");
+                    setConfPass("");
+                } catch (error) {
+                    console.error(error);
+                    if (error.code === 'auth/requires-recent-login') {
+                        showNotify("セキュリティのため、再ログイン後に再度お試しください", "error");
+                    } else {
+                        showNotify("更新に失敗しました: " + error.message, "error");
+                    }
+                } finally {
+                    setIsUpdating(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-brand-slate p-6 fade-in">
+                    <div className="max-w-2xl mx-auto">
+                        <button onClick={onBack} className="flex items-center text-gray-500 hover:text-gray-700 mb-6 font-bold">
+                            <ArrowUp className="w-4 h-4 mr-1 -rotate-90" /> 戻る
+                        </button>
+                        
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="p-6 border-b border-gray-100 bg-gray-50">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border border-gray-200 text-brand-blue">
+                                        <User className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-gray-800">マイページ</h2>
+                                        <p className="text-sm text-gray-500">{user.email}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="p-8">
+                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                                    <Lock className="w-5 h-5 mr-2 text-brand-blue"/>
+                                    パスワード変更
+                                </h3>
+                                <form onSubmit={handleUpdate} className="space-y-4 max-w-md">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-600 mb-1">新しいパスワード</label>
+                                        <input 
+                                            type="password" 
+                                            className="w-full border border-gray-300 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-brand-blue"
+                                            placeholder="6文字以上"
+                                            value={newPass}
+                                            onChange={(e) => setNewPass(e.target.value)}
+                                            minLength={6}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-600 mb-1">新しいパスワード（確認）</label>
+                                        <input 
+                                            type="password" 
+                                            className="w-full border border-gray-300 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-brand-blue"
+                                            placeholder="もう一度入力"
+                                            value={confPass}
+                                            onChange={(e) => setConfPass(e.target.value)}
+                                            minLength={6}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="pt-2">
+                                        <button 
+                                            type="submit" 
+                                            disabled={isUpdating}
+                                            className="bg-brand-blue text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50"
+                                        >
+                                            {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Save className="w-4 h-4 mr-2"/>}
+                                            パスワードを更新する
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // 4. School Console Component
         // ==========================================
         function SchoolConsole({ onBack, campus, allData, selectedYear, setSelectedYear, refreshData, showNotify, isAdmin }) {
             const [activeTab, setActiveTab] = useState('daily');
@@ -694,7 +1044,7 @@
             const [reportDate, setReportDate] = useState(formatDateStr(new Date()));
             const [inputData, setInputData] = useState({ weather: 'sunny', flyers: 0, touch: 0, trial: 0, comment: '' });
             const [uploading, setUploading] = useState(false);
-            const [planData, setPlanData] = useState({ initialStudents: 0 }); 
+            const [planData, setPlanData] = useState({ initialStudents: 0 }); // 初期値を設定
             const [isSavingPlan, setIsSavingPlan] = useState(false);
             const [uploadTargetYear, setUploadTargetYear] = useState(selectedYear);
             const [isInputModalOpen, setIsInputModalOpen] = useState(false);
@@ -727,12 +1077,30 @@
                         try {
                             const docRef = doc(db, "campus_plans", `${campus.id}_${selectedYear}`);
                             const docSnap = await getDoc(docRef);
+                            // 既存データがあればセット、なければ初期値
                             setPlanData(docSnap.exists() ? { initialStudents: 0, ...docSnap.data().plans } : { initialStudents: 0 });
                         } catch (e) { console.error(e); }
                     };
                     fetchPlan();
                 }
             }, [activeTab, campus, selectedYear]);
+
+            // 生徒数推移を含めた計画データの計算（レポート用）
+            const calculatedPlanData = useMemo(() => {
+                const newData = { ...planData };
+                let currentStudentCount = Number(newData.initialStudents) || 0;
+                
+                MONTHS_LIST.forEach(m => {
+                    if (!newData[m]) newData[m] = {};
+                    const enroll = Number(newData[m].enrollments || 0);
+                    const withdraw = Number(newData[m].withdrawals || 0);
+                    const monthEndStudents = currentStudentCount + enroll - withdraw;
+                    // 自動計算された生徒数をセット
+                    newData[m].students = monthEndStudents;
+                    currentStudentCount = monthEndStudents;
+                });
+                return newData;
+            }, [planData]);
 
             useEffect(() => {
                 if (!campus) return;
@@ -786,6 +1154,7 @@
                 setPlanData(prev => {
                     const newData = { ...prev };
                     
+                    // 期首生徒数の更新
                     if (month === 'initial' && key === 'students') {
                         newData.initialStudents = Number(value);
                         return newData;
@@ -794,12 +1163,14 @@
                     if (!newData[month]) newData[month] = {};
                     
                     if (weekIndex !== null) {
+                        // 週次データの更新
                         if (!newData[month].weeks) newData[month].weeks = [];
                         const weeks = [...newData[month].weeks];
                         if (!weeks[weekIndex]) weeks[weekIndex] = {};
                         weeks[weekIndex] = { ...weeks[weekIndex], [key]: Number(value) };
                         newData[month].weeks = weeks;
                     } else {
+                        // 月次データの更新
                         newData[month] = { ...newData[month], [key]: Number(value) };
                     }
                     return newData;
@@ -815,7 +1186,7 @@
                 } catch (e) { showNotify("保存失敗: " + e.message, 'error'); } finally { setIsSavingPlan(false); }
             };
             
-            // 年間計画の生徒数計算用ロジック
+            // 年間計画の生徒数計算用ロジック（表示用）
             let currentStudentCount = planData.initialStudents || 0;
 
             // 週次計画の合計計算用
@@ -830,7 +1201,7 @@
                 }), { touchTry:0, flyers:0, trialApp:0, trialParticipation:0, enrollments:0 });
             }, [planData, selectedMonth]);
             
-            const handleCsvUpload = async (parsedData) => {
+            const handleCsvUpload = async (parsedData) => { /* 前回のコードと同じ実装 */
                 if (!campus) return;
                 setUploading(true);
                 try {
@@ -877,7 +1248,7 @@
                             campus={campus} 
                             dailyData={currentMonthData.daily} 
                             weeklyData={currentMonthData.weekly} 
-                            planData={planData} 
+                            planData={calculatedPlanData} 
                             summaryData={{
                                 students: currentMonthData.students,
                                 newEnrollments: currentMonthData.newEnrollments,
@@ -1171,7 +1542,7 @@
                                                     campus={campus} 
                                                     dailyData={currentMonthData.daily} 
                                                     weeklyData={currentMonthData.weekly} 
-                                                    planData={planData} 
+                                                    planData={calculatedPlanData} 
                                                     summaryData={{
                                                         students: currentMonthData.students,
                                                         newEnrollments: currentMonthData.newEnrollments,
@@ -1727,6 +2098,21 @@
 
                             {activeTab === 'marketing' && (
                                 <div className="space-y-8 animate-in fade-in">
+                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                                        <StatCard title="門配数" value={Number(marketingTotals.flyers).toLocaleString()} subValue="枚" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_1eb00716-6ac0-4be4-9b78-e8e9be44198e.svg" colorClass="text-brand-blue" />
+                                        <StatCard title="T&T数" value={`${marketingTotals.touchTry}名`} subValue="回" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_c7c5b948-913f-4f31-903b-c8a91774107f.svg" colorClass="text-emerald-500" />
+                                        <StatCard
+                                            title="体験・イベント申込"
+                                            value={`${marketingTotals.totalApps}名`}
+                                            subValue={`体験:${marketingTotals.trialApp} / イベ:${marketingTotals.eventApp}`}
+                                            iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_d71099f5-a933-4295-9991-75c16e130f81.svg"
+                                            colorClass="text-brand-blue"
+                                        />
+                                        <StatCard title="体験会実施" value={`${marketingTotals.trialActual}名`} subValue="回" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_f93e0546-f8d7-464b-b008-882ad339027e.svg" colorClass="text-brand-orange" />
+                                        <StatCard title="入会数" value={`${marketingTotals.newEnrollments}名`} subValue="人" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_c7c5b948-913f-4f31-903b-c8a91774107f.svg" colorClass="text-emerald-600" />
+                                        <StatCard title="入会率" value={`${marketingTotals.rate}%`} subValue="入会 ÷ 実施" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_33bb072f-fe8f-4a20-8e5a-0bc5f53bde3d.svg" colorClass="text-rose-500" />
+                                    </div>
+
                                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-[500px]">
                                         <h3 className="text-lg font-bold text-gray-800 mb-6">集客ファネル推移 ({viewLabel})</h3>
                                         <ResponsiveContainer width="100%" height="100%">
