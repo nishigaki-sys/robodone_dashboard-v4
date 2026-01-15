@@ -1215,43 +1215,11 @@
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-xs font-bold text-gray-400 block mb-1">門配数</label>
-                                            <input 
-                                                type="number" 
-                                                value={inputData.flyers} 
-                                                onChange={e => {
-                                                    const val = e.target.value.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
-                                                    setInputData({ ...inputData, flyers: val });
-                                                }}
-                                                className="w-full border rounded p-2 text-right font-bold text-gray-700"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold text-gray-400 block mb-1">T&T数</label>
-                                            <input 
-                                                type="number" 
-                                                value={inputData.touch} 
-                                                onChange={e => {
-                                                    const val = e.target.value.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
-                                                    setInputData({ ...inputData, touch: val });
-                                                }}
-                                                className="w-full border rounded p-2 text-right font-bold text-gray-700"
-                                            />
-                                        </div>
+                                        <div><label className="text-xs font-bold text-gray-400 block mb-1">門配数</label><input type="number" value={inputData.flyers} onChange={e=>setInputData({...inputData,flyers:e.target.value})} className="w-full border rounded p-2 text-right font-bold text-gray-700"/></div>
+                                        <div><label className="text-xs font-bold text-gray-400 block mb-1">T&T数</label><input type="number" value={inputData.touch} onChange={e=>setInputData({...inputData,touch:e.target.value})} className="w-full border rounded p-2 text-right font-bold text-gray-700"/></div>
                                     </div>
+                                    <div><label className="text-xs font-bold text-gray-400 block mb-1">体験会実施数</label><input type="number" value={inputData.trial} onChange={e=>setInputData({...inputData,trial:e.target.value})} className="w-full border rounded p-2 text-right font-bold text-gray-700"/></div>
                                     <div>
-                                        <label className="text-xs font-bold text-gray-400 block mb-1">体験会実施数</label>
-                                        <input 
-                                            type="number" 
-                                            value={inputData.trial} 
-                                            onChange={e => {
-                                                const val = e.target.value.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
-                                                setInputData({ ...inputData, trial: val });
-                                            }}
-                                            className="w-full border rounded p-2 text-right font-bold text-gray-700"
-                                        />
-                                    </div>
                                         <label className="text-xs font-bold text-gray-400 block mb-1">コメント (100文字以内)</label>
                                         <textarea value={inputData.comment} onChange={e=>setInputData({...inputData,comment:e.target.value})} maxLength={100} className="w-full border rounded p-2 text-sm text-gray-700 h-20 resize-none focus:ring-2 focus:ring-brand-orange outline-none" placeholder="特記事項があれば入力..."/>
                                         <div className="text-right text-[10px] text-gray-400">{inputData.comment.length}/100</div>
