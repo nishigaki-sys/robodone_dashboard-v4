@@ -56,6 +56,17 @@
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
 
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        /* Firefox 用 */
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
         /* 印刷用スタイル */
        @media print {
             body { 
