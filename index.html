@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Robot School Dashboard V4.4 (Fixed)</title>
+    <title>Robot School Dashboard V4.5</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -41,7 +41,7 @@
     </script>
 
     <style>
-        body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: #F8FAFC; }
+        body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: #F8FAFC; margin: 0; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -53,49 +53,52 @@
         .modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
 
         /* --- 印刷用スタイル修正版 --- */
-        /* 画面表示用: A4プレビュー枠 */
+        /* 画面上でのレポートプレビュー用スタイル */
         .report-preview-wrapper {
             width: 210mm;
             min-height: 297mm;
             background: white;
-            margin: 0 auto;
+            margin: 20px auto;
             padding: 10mm;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            box-sizing: border-box; 
+            box-sizing: border-box;
         }
 
         @media print {
-            @page { size: A4; margin: 0; }
+            @page { size: A4; margin: 5mm; }
             body { 
                 background-color: white; 
-                margin: 0; 
-                padding: 0; 
                 -webkit-print-color-adjust: exact; 
                 print-color-adjust: exact; 
+                margin: 0; 
+                padding: 0;
             }
             /* 画面レイアウトの無効化 */
-            #root, .flex, .h-screen { 
+            #root, .flex, .h-screen, aside, header { 
                 height: auto !important; 
                 overflow: visible !important; 
                 display: block !important; 
+                position: static !important;
             }
-            /* 非表示要素 */
-            .no-print { display: none !important; }
+            
+            /* UI要素の非表示 */
+            .no-print, nav, .fixed, button, .p-8.max-w-5xl, .max-w-7xl, aside { 
+                display: none !important; 
+            }
             .print-only { display: block !important; }
 
             /* レポート本体のスタイル調整 */
             .report-preview-wrapper {
-                width: 100% !important; /* 用紙幅いっぱいに */
+                width: 100% !important;
                 max-width: none !important;
                 margin: 0 !important;
-                padding: 10mm !important; /* 余白確保 */
+                padding: 0 !important;
                 box-shadow: none !important;
                 min-height: auto !important;
+                border: none !important;
             }
             
-            /* テーブル調整 */
-            .report-table { width: 100% !important; }
-            .report-table th, .report-table td { border: 1px solid #333 !important; }
+            .report-table th, .report-table td { border: 1px solid #000 !important; }
         }
         .print-only { display: none; }
         
