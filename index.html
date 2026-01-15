@@ -1614,24 +1614,12 @@
         }
 
        // ==========================================
-        // 5. HQ Console Component (年月指定対応版)
+        // 5. HQ Console Component (純増数KPI追加版)
         // ==========================================
         function HQConsole({ onBack, campusList, allData, selectedYear, setSelectedYear, refreshData, showNotify, isSyncing, lastUpdated, isUsingCache, isAdmin }) {
             const [activeTab, setActiveTab] = useState('dashboard');
             const [viewMode, setViewMode] = useState('annual');
             const [selectedMonth, setSelectedMonth] = useState('4月');
-            
-            // ▼ 追加: 期間指定用のState (年月文字列 YYYY-MM)
-            const [customStartMonth, setCustomStartMonth] = useState(() => {
-                const y = new Date().getFullYear();
-                return `${y}-04`; // デフォルト: 当年4月
-            });
-            const [customEndMonth, setCustomEndMonth] = useState(() => {
-                const d = new Date();
-                const m = ('0' + (d.getMonth() + 1)).slice(-2);
-                return `${d.getFullYear()}-${m}`; // デフォルト: 当月
-            });
-
             const [newCampusName, setNewCampusName] = useState("");
             const [newCampusId, setNewCampusId] = useState("");
             const [selectedHQCampusId, setSelectedHQCampusId] = useState('All');
@@ -1661,28 +1649,12 @@
                 if (viewMode === 'annual') return fullDashboardData;
                 if (viewMode === 'half' || viewMode === 'quarter') return aggregatePeriod(fullDashboardData, viewMode);
                 
-                // ▼ 追加: 期間指定(custom)の処理 (年月範囲フィルタリング)
-                if (viewMode === 'custom') {
-                    if (!customStartMonth || !customEndMonth) return fullDashboardData;
-                    
-                    return fullDashboardData.filter((data, index) => {
-                        // データに対応する年月(YYYY-MM)を算出
-                        let mYear = Number(selectedYear);
-                        // MONTHS_LISTは['4月'...'3月']の順。index 0-8は当年、9-11は翌年
-                        if (index >= 9) mYear += 1;
-                        const monthNum = index < 9 ? index + 4 : index - 8;
-                        const dataKey = `${mYear}-${('0' + monthNum).slice(-2)}`;
-                        
-                        return dataKey >= customStartMonth && dataKey <= customEndMonth;
-                    });
-                }
-
                 const targetMonthData = fullDashboardData.find(m => m.name === selectedMonth);
                 if (!targetMonthData) return [];
 
                 if (viewMode === 'weekly') return targetMonthData.weekly || [];
                 return targetMonthData.daily;
-            }, [fullDashboardData, viewMode, selectedMonth, customStartMonth, customEndMonth, selectedYear]);
+            }, [fullDashboardData, viewMode, selectedMonth]);
 
             const monthDataForPL = useMemo(() => { return fullDashboardData.find(m => m.name === selectedMonth); }, [fullDashboardData, selectedMonth]);
 
@@ -1741,7 +1713,7 @@
                 });
             }, [displayData, viewMode, monthDataForPL]);
 
-            // 純増数の計算
+            // ▼ 追加: 純増数の計算 (入会 - 退会)
             const netIncrease = totals.newEnrollments - totals.withdrawals;
 
             const monthlySummaryData = useMemo(() => {
@@ -1762,8 +1734,7 @@
 
             const currentTotalStudents = useMemo(() => {
                 if (viewMode === 'monthly') return monthDataForPL ? monthDataForPL.students : 0;
-                // ▼ 修正: customモードでも期間末(配列の最後)の生徒数を採用
-                if (viewMode === 'annual' || viewMode === 'half' || viewMode === 'quarter' || viewMode === 'custom') {
+                if (viewMode === 'annual' || viewMode === 'half' || viewMode === 'quarter') {
                     return displayData.length > 0 ? displayData[displayData.length - 1].students : 0;
                 }
                 const mData = fullDashboardData.find(m => m.name === selectedMonth);
@@ -1771,12 +1742,7 @@
             }, [fullDashboardData, viewMode, selectedMonth, displayData, monthDataForPL]);
 
             const currentViewData = useMemo(() => {
-                // ▼ 修正: custom用のラベル定義を追加
-                const viewLabel = { 
-                    'annual': '年度', 'half': '半期', 'quarter': '四半期', 'monthly': '月度', 'weekly': '週次',
-                    'custom': `${customStartMonth}〜${customEndMonth}` 
-                }[viewMode];
-
+                const viewLabel = { 'annual': '年度', 'half': '半期', 'quarter': '四半期', 'monthly': '月度', 'weekly': '週次' }[viewMode];
                 if (hoveredData) {
                     return {
                         ...hoveredData,
@@ -1792,7 +1758,7 @@
                         ...totals, totalStudents: currentTotalStudents, periodLabel: viewLabel === '月度' ? selectedMonth : viewLabel
                     };
                 }
-            }, [hoveredData, totals, currentTotalStudents, viewMode, selectedMonth, customStartMonth, customEndMonth]);
+            }, [hoveredData, totals, currentTotalStudents, viewMode, selectedMonth]);
 
             const calcYoY = (curr, prev) => { if (!prev || prev === 0) return null; return ((curr / prev) * 100).toFixed(1); };
             const handleChartHover = (state) => { if (state && state.activePayload && state.activePayload.length > 0) { setHoveredData(state.activePayload[0].payload); } };
@@ -1864,6 +1830,7 @@
                 return { data: processed, keys: Array.from(uniqueKeys) };
             }, [displayData, plViewCategory]);
 
+            const viewLabel = { 'annual': '年度', 'half': '半期', 'quarter': '四半期', 'monthly': '月度', 'weekly': '週次' }[viewMode];
             const availableViewModes = ['annual', 'half', 'quarter', 'monthly'];
             if (activeTab === 'students') availableViewModes.push('weekly');
             const handlePLRowClick = (item) => { if (!monthDataForPL) return; if (item.id === 'revenue' || item.id === 'profit') return; setSelectedPLItem(item); };
@@ -1921,10 +1888,9 @@
                                             </select>
                                         </div>
                                         <div className="flex bg-gray-100 rounded-lg p-1 border border-gray-200">
-                                            {/* ▼ 修正: customボタンを追加 */}
-                                            {[...availableViewModes, 'custom'].map(m => (
+                                            {availableViewModes.map(m => (
                                                 <button key={m} onClick={()=>setViewMode(m)} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewMode===m ? 'bg-white text-brand-blue shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                                                    {{annual:'年度', half:'半期', quarter:'四半期', monthly:'月度', weekly:'週次', custom:'期間指定'}[m]}
+                                                    {{annual:'年度', half:'半期', quarter:'四半期', monthly:'月度', weekly:'週次'}[m]}
                                                 </button>
                                             ))}
                                         </div>
@@ -1933,14 +1899,6 @@
                                                 <select value={selectedMonth} onChange={(e)=>setSelectedMonth(e.target.value)} className="bg-transparent text-sm font-bold text-gray-700 outline-none cursor-pointer">
                                                     {MONTHS_LIST.map(m=><option key={m} value={m}>{m}</option>)}
                                                 </select>
-                                            </div>
-                                        )}
-                                        {/* ▼ 追加: 期間指定(custom)の年月入力 */}
-                                        {viewMode === 'custom' && (
-                                            <div className="flex items-center bg-gray-50 rounded-lg px-2 py-1 border border-gray-200 gap-2">
-                                                <input type="month" value={customStartMonth} onChange={e=>setCustomStartMonth(e.target.value)} className="bg-transparent text-xs font-bold text-gray-700 outline-none" />
-                                                <span className="text-gray-400 text-xs">〜</span>
-                                                <input type="month" value={customEndMonth} onChange={e=>setCustomEndMonth(e.target.value)} className="bg-transparent text-xs font-bold text-gray-700 outline-none" />
                                             </div>
                                         )}
                                     </>
@@ -2115,6 +2073,7 @@
                             {activeTab === 'students' && (
                                 <div className="space-y-8 animate-in fade-in">
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                        {/* ▼ 追加: 純増数カード */}
                                         <StatCard 
                                             title="純増数" 
                                             value={`${netIncrease > 0 ? '+' : ''}${netIncrease}名`} 
