@@ -322,6 +322,9 @@
             });
         };
 
+        // ==========================================
+        // 修正版: aggregatePeriod 関数
+        // ==========================================
         const aggregatePeriod = (monthlyData, periodType) => {
             if (periodType === 'annual') return monthlyData;
             let groups = [];
@@ -350,6 +353,12 @@
                     }
                     return acc;
                 }, { name: g.name, detailItems: {} });
+                
+                // ★追加: 期間内の最終月の生徒数を、その期間の生徒数として採用する
+                if (targets.length > 0) { 
+                    agg.students = targets[targets.length - 1].students; 
+                }
+
                 return agg;
             });
         };
