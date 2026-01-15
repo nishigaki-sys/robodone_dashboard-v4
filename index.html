@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Robot School Dashboard V4.5</title>
+    <title>Robot School Dashboard V4.6 (Final)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -52,8 +52,7 @@
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
 
-        /* --- 印刷用スタイル修正版 --- */
-        /* 画面上でのレポートプレビュー用スタイル */
+        /* 印刷用スタイル修正版 */
         .report-preview-wrapper {
             width: 210mm;
             min-height: 297mm;
@@ -73,21 +72,16 @@
                 margin: 0; 
                 padding: 0;
             }
-            /* 画面レイアウトの無効化 */
             #root, .flex, .h-screen, aside, header { 
                 height: auto !important; 
                 overflow: visible !important; 
                 display: block !important; 
                 position: static !important;
             }
-            
-            /* UI要素の非表示 */
             .no-print, nav, .fixed, button, .p-8.max-w-5xl, .max-w-7xl, aside { 
                 display: none !important; 
             }
             .print-only { display: block !important; }
-
-            /* レポート本体のスタイル調整 */
             .report-preview-wrapper {
                 width: 100% !important;
                 max-width: none !important;
@@ -97,7 +91,6 @@
                 min-height: auto !important;
                 border: none !important;
             }
-            
             .report-table th, .report-table td { border: 1px solid #000 !important; }
         }
         .print-only { display: none; }
@@ -749,9 +742,8 @@
                 </div>
             );
         };
-        // ==========================================
-        // ログインコンポーネント
-        // ==========================================
+        
+        // --- ログインコンポーネント ---
         const Login = () => {
             const [email, setEmail] = useState("");
             const [password, setPassword] = useState("");
@@ -825,9 +817,7 @@
             );
         };
 
-        // ==========================================
-        // マイページコンポーネント
-        // ==========================================
+        // --- マイページコンポーネント ---
         const MyPage = ({ user, onBack, showNotify }) => {
             const [newPass, setNewPass] = useState("");
             const [confPass, setConfPass] = useState("");
@@ -929,9 +919,8 @@
                 </div>
             );
         };
-
         // ==========================================
-        // 4. School Console Component
+        // 4. School Console Component (自動計算・累計表示対応版)
         // ==========================================
         function SchoolConsole({ onBack, campus, allData, selectedYear, setSelectedYear, refreshData, showNotify, isAdmin }) {
             const [activeTab, setActiveTab] = useState('daily');
@@ -952,7 +941,7 @@
             }, [campus, allData, selectedYear]);
 
             const currentMonthData = useMemo(() => {
-                return dashboardData.find(d => d.name === selectedMonth) || { daily: [], weekly: [], students: 0, newEnrollments: 0, withdrawals: 0 };
+                return dashboardData.find(d => d.name === selectedMonth) || { daily: [], weekly: [] };
             }, [dashboardData, selectedMonth]);
 
             const lastUploadInfo = useMemo(() => {
@@ -968,7 +957,7 @@
             }, [selectedYear, selectedMonth]);
 
             useEffect(() => {
-                if (activeTab === 'plan' || activeTab === 'report') {
+                if (activeTab === 'plan' && campus) {
                     const fetchPlan = async () => {
                         try {
                             const docRef = doc(db, "campus_plans", `${campus.id}_${selectedYear}`);
@@ -980,23 +969,6 @@
                     fetchPlan();
                 }
             }, [activeTab, campus, selectedYear]);
-
-            // 生徒数推移を含めた計画データの計算（レポート用）
-            const calculatedPlanData = useMemo(() => {
-                const newData = { ...planData };
-                let currentStudentCount = Number(newData.initialStudents) || 0;
-                
-                MONTHS_LIST.forEach(m => {
-                    if (!newData[m]) newData[m] = {};
-                    const enroll = Number(newData[m].enrollments || 0);
-                    const withdraw = Number(newData[m].withdrawals || 0);
-                    const monthEndStudents = currentStudentCount + enroll - withdraw;
-                    // 自動計算された生徒数をセット
-                    newData[m].students = monthEndStudents;
-                    currentStudentCount = monthEndStudents;
-                });
-                return newData;
-            }, [planData]);
 
             useEffect(() => {
                 if (!campus) return;
@@ -1082,7 +1054,7 @@
                 } catch (e) { showNotify("保存失敗: " + e.message, 'error'); } finally { setIsSavingPlan(false); }
             };
             
-            // 年間計画の生徒数計算用ロジック（表示用）
+            // 年間計画の生徒数計算用ロジック
             let currentStudentCount = planData.initialStudents || 0;
 
             // 週次計画の合計計算用
@@ -1136,7 +1108,7 @@
 
             return (
                 <div className="flex h-screen bg-brand-slate overflow-hidden fade-in">
-                    {/* レポート印刷用ビュー: 画面には表示せず印刷時のみ表示 */}
+                    {/* レポート印刷用ビュー */}
                     <div className="print-only">
                          <ReportView 
                             year={displayCalendarYear} 
@@ -1144,7 +1116,7 @@
                             campus={campus} 
                             dailyData={currentMonthData.daily} 
                             weeklyData={currentMonthData.weekly} 
-                            planData={calculatedPlanData} 
+                            planData={planData} 
                             summaryData={{
                                 students: currentMonthData.students,
                                 newEnrollments: currentMonthData.newEnrollments,
@@ -1256,7 +1228,7 @@
                                 </div>
                             )}
 
-                            {/* 計画策定タブ */}
+                            {/* 計画策定タブ (大幅改修) */}
                             {activeTab === 'plan' && (
                                 <div className="space-y-6 animate-in fade-in">
                                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
