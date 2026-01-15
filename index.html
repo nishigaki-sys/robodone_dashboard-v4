@@ -250,8 +250,8 @@
             return { weeks, daysInMonth, year: targetYear, month: jsMonth };
         };
 
-        // ==========================================
-        // 2. Data Processing Logic
+       // ==========================================
+        // 2. Data Processing Logic (修正完了版)
         // ==========================================
         const determineDetailedCategory = (code) => {
             if (!code) return 'other';
@@ -271,24 +271,43 @@
         const processDashboardData = (campuses, enrollments, statusChanges, transfers, dailyReports, financials, trialApps, targetYear) => {
             const sheetNameToIdMap = {};
             const targetCampusIds = new Set(campuses.map(c => c.id));
-            const targetCampusMatchers = campuses.map(c => ({
-                id: c.id,
-                keywords: [c.name, c.sheetName, normalizeString(c.name), normalizeString(c.sheetName)].filter(k => k && k.trim().length > 0)
-            }));
+            
+            // 校舎名マッピングの構築
             campuses.forEach(c => {
-                const key = c.sheetName || c.name;
-                sheetNameToIdMap[key] = c.id;
-                sheetNameToIdMap[normalizeString(key)] = c.id;
+                // 1. 基本的な名称 (登録名・連携名)
+                const validNames = [c.name, c.sheetName].filter(n => n);
+
+                // 2. 指定ルールに基づくパターンの追加
+                // ルール: 「ロボ団エディオン〇〇校」 or 「エディオン〇〇校」 (〇〇 = 校舎名)
+                if (c.name) {
+                    validNames.push(`ロボ団エディオン${c.name}校`);
+                    validNames.push(`エディオン${c.name}校`);
+                    // ※念のため "校" が抜けているケース("エディオン広島本店"など)も拾えるようにパターン追加
+                    validNames.push(`ロボ団エディオン${c.name}`);
+                    validNames.push(`エディオン${c.name}`);
+                }
+
+                // マップに登録 (そのままの文字列 と 正規化文字列の両方)
+                validNames.forEach(n => {
+                    sheetNameToIdMap[n] = c.id;
+                    sheetNameToIdMap[normalizeString(n)] = c.id;
+                });
             });
+
+            // 集計対象判定ロジック (完全一致方式)
             const isTargetCampus = (item) => {
+                // 1. IDがある場合はIDで判定 (最優先)
                 if (item.campusId && targetCampusIds.has(item.campusId)) return true;
+
+                // 2. IDがない場合は校舎名で判定
                 const rawName = item.campus || item.school;
                 if (!rawName) return false;
-                const normName = normalizeString(rawName);
-                let cId = sheetNameToIdMap[rawName] || sheetNameToIdMap[normName];
-                if (cId && targetCampusIds.has(cId)) return true;
-                const matched = targetCampusMatchers.find(matcher => matcher.keywords.some(keyword => normName.includes(keyword)));
-                return matched ? true : false;
+
+                // マップからIDを検索 (完全一致または正規化後の一致)
+                const cId = sheetNameToIdMap[rawName] || sheetNameToIdMap[normalizeString(rawName)];
+                
+                // 対象のIDであればtrue
+                return cId && targetCampusIds.has(cId);
             };
 
             let baseStudentCount = 0;
